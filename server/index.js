@@ -178,7 +178,7 @@ const recordTaskCompletionAndReward = async (userId, taskId, channelLink, coinRe
   try {
     // 1. Record completion entry in user_task_completions table
     if (taskId || channelLink) {
-      await supabase.from('user_task_completions').upsert([
+      const { error } = await supabase.from('user_task_completions').upsert([
         {
           user_id: userId,
           task_id: taskId || null,
@@ -187,13 +187,15 @@ const recordTaskCompletionAndReward = async (userId, taskId, channelLink, coinRe
           completed_at: new Date().toISOString()
         }
       ], { onConflict: 'user_id,task_id' });
+      if (error) throw new Error(`Failed to save task completion: ${error.message}`);
     }
 
     // 2. Increment task completed_count in tasks table
     if (taskId) {
       const { data: task } = await supabase.from('tasks').select('completed_count').eq('task_id', taskId).maybeSingle();
       if (task) {
-        await supabase.from('tasks').update({ completed_count: (task.completed_count || 0) + 1 }).eq('task_id', taskId);
+        const { error: tErr } = await supabase.from('tasks').update({ completed_count: (task.completed_count || 0) + 1 }).eq('task_id', taskId);
+        if (tErr) console.error("Error updating tasks count:", tErr.message);
       }
     }
 
