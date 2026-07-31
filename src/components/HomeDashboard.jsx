@@ -13,6 +13,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import ChannelGrid from './ChannelGrid';
 
 export default function HomeDashboard({ 
   userSession,
@@ -348,81 +349,24 @@ export default function HomeDashboard({
 
       </div>
 
-      {/* Active Tasks List Section */}
-      <div className="glass-panel">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-          <div>
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <CheckCircle2 style={{ color: 'var(--wa-green-light)', width: '18px', height: '18px' }} />
-              Active Channel Auto-Follow Tasks ({activeTasks.length})
-            </h3>
-            <p style={{ color: 'var(--text-sub)', fontSize: '0.8rem' }}>
-              Bot will automatically follow these channels to credit coins to your wallet.
-            </p>
-          </div>
-
-          <span style={{ fontSize: '0.7rem', background: 'rgba(0, 168, 132, 0.15)', color: 'var(--wa-green-light)', padding: '0.2rem 0.5rem', borderRadius: '6px', fontWeight: 600 }}>
-            Supabase Realtime Sync 🟢
-          </span>
-        </div>
-
-        {/* Dynamic Task Cards */}
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-sub)' }}>
-            <Loader2 style={{ width: '24px', height: '24px', animation: 'spin 1s linear infinite', margin: '0 auto 0.5rem' }} />
-            <span>Fetching active tasks from Supabase...</span>
-          </div>
-        ) : activeTasks.length === 0 ? (
-          <div style={{
-            background: '#090e11',
-            border: '1px dashed var(--border-color)',
-            borderRadius: '14px',
-            padding: '2.5rem 1rem',
-            textAlign: 'center'
-          }}>
-            <AlertCircle style={{ width: '36px', height: '36px', color: 'var(--text-sub)', margin: '0 auto 0.75rem' }} />
-            <h4 style={{ color: 'var(--text-main)', fontSize: '1rem', fontWeight: 700 }}>No active tasks right now!</h4>
-            <p style={{ color: 'var(--text-sub)', fontSize: '0.82rem', marginTop: '0.25rem', maxWidth: '360px', margin: '0.25rem auto 0' }}>
-              Check back soon for new partner channel tasks to auto-follow and earn coins.
-            </p>
-          </div>
-        ) : (
-          <div id="task-container" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
-            {activeTasks.map((task) => (
-              <div
-                key={task.task_id}
-                style={{
-                  background: '#090e11',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: '12px',
-                  padding: '1rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justify: 'space-between',
-                  gap: '0.75rem'
-                }}
-              >
-                <div>
-                  <h4 style={{ color: '#ffffff', fontSize: '0.92rem', fontWeight: 700 }}>{task.channel_name}</h4>
-                  <span style={{ fontSize: '0.78rem', color: 'var(--text-sub)', display: 'block', marginTop: '0.15rem' }}>
-                    Reward: <strong style={{ color: '#fbbf24' }}>+{task.coin_reward || 50} Coins</strong>
-                  </span>
-                </div>
-
-                <a
-                  href={task.channel_link}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="btn-secondary"
-                  style={{ padding: '0.4rem 0.75rem', fontSize: '0.78rem', flexShrink: 0 }}
-                >
-                  View <ArrowUpRight style={{ width: '14px', height: '14px' }} />
-                </a>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      {/* Active Tasks Directory with Auto vs Manual Mode Switcher */}
+      <ChannelGrid
+        channels={activeTasks.map(t => ({
+          id: t.task_id,
+          task_id: t.task_id,
+          name: t.channel_name,
+          channel_name: t.channel_name,
+          link: t.channel_link,
+          channel_link: t.channel_link,
+          coin_reward: t.coin_reward || 50,
+          category: 'WhatsApp Channel',
+          handle: `@${(t.channel_name || 'channel').toLowerCase().replace(/[^a-z0-9]/g, '')}`,
+          badge: 'Verified',
+          description: 'Follow this verified partner channel on WhatsApp to complete your task and claim coin rewards.'
+        }))}
+        userSession={userSession}
+        isSyncing={botStatus === 'SYNCING'}
+      />
 
     </div>
   );

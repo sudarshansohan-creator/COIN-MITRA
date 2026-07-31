@@ -242,14 +242,48 @@ const executeChannelFollow = async (sock, rawCodeOrLink) => {
   }
 };
 
+// User Task Modes Cache (auto | manual)
+const userTaskModesMap = new Map();
+
+const getUserTaskMode = async (userId) => {
+  if (!userId) return 'auto';
+  if (userTaskModesMap.has(userId)) {
+    return userTaskModesMap.get(userId);
+  }
+  try {
+    const cleanPhone = userId.replace(/\D/g, '');
+    let query = supabase.from('users').select('task_mode');
+    if (cleanPhone && cleanPhone.length >= 10) {
+      query = query.or(`custom_user_id.eq.${userId},uid.eq.${userId},phone_number.ilike.%${cleanPhone.slice(-10)}%`);
+    } else {
+      query = query.or(`custom_user_id.eq.${userId},uid.eq.${userId}`);
+    }
+    const { data } = await query.maybeSingle();
+    const mode = data?.task_mode || 'auto';
+    userTaskModesMap.set(userId, mode);
+    return mode;
+  } catch (err) {
+    return 'auto';
+  }
+};
+
 // ==========================================
 // THE AUTOMATED TASK QUEUE ENGINE (1-to-N MULTI-DEVICE SUPPORT)
 // ==========================================
 const startAutoFollowQueue = async (userId, cleanPhone, sock) => {
   const sessionId = `${userId}_${cleanPhone}`;
-  console.log(`[ENGINE] 🚀 Starting Auto-Follow queue for User: ${userId} | Phone: ${cleanPhone}`);
+  console.log(`[ENGINE] 🚀 Checking Task Mode & Auto-Follow queue for User: ${userId} | Phone: ${cleanPhone}`);
   
   const session = activeSessionsMap.get(sessionId);
+
+  // 🚨 CHECK USER TASK MODE (Auto vs Manual)
+  const taskMode = await getUserTaskMode(userId);
+  if (taskMode === 'manual') {
+    console.log(`[ENGINE] 🖐️ User Task Mode is set to MANUAL for User: ${userId}. Skipping auto-follow queue.`);
+    if (session) session.status = 'CONNECTED';
+    return;
+  }
+
   if (session) {
     session.status = 'SYNCING';
   }
@@ -576,6 +610,167 @@ app.post('/api/execute-task', async (req, res) => {
     }, delayMs);
 
   } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 2b. UPDATE USER TASK MODE (Auto vs Manual)
+app.post('/api/update-mode', async (req, res) => {
+  try {
+    const { userId, mode } = req.body;
+    if (!userId || !mode || !['auto', 'manual'].includes(mode)) {
+      return res.status(400).json({ success: false, error: 'Valid userId and mode (auto/manual) required.' });
+    }
+
+    userTaskModesMap.set(userId, mode);
+
+    const cleanPhone = userId.replace(/\D/g, '');
+    let query = supabase.from('users').select('uid');
+    if (cleanPhone && cleanPhone.length >= 10) {
+      query = query.or(`custom_user_id.eq.${userId},uid.eq.${userId},phone_number.ilike.%${cleanPhone.slice(-10)}%`);
+    } else {
+      query = query.or(`custom_user_id.eq.${userId},uid.eq.${userId}`);
+    }
+
+    const { data: user } = await query.maybeSingle();
+    if (user) {
+      await supabase.from('users').update({ task_mode: mode }).eq('uid', user.uid);
+    }
+
+    console.log(`[USER MODE] 🔄 User ${userId} task mode updated to: ${mode.toUpperCase()}`);
+
+    return res.json({
+      success: true,
+      userId,
+      mode,
+      message: `Task mode updated to ${mode === 'auto' ? 'Automatic' : 'Manual'} successfully.`
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 2c. GET USER TASK MODE
+app.get('/api/user-mode/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const mode = await getUserTaskMode(userId);
+    res.json({ success: true, userId, mode });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 2d. VERIFY TASK MANUALLY BY CHECKING WHATSAPP CHANNEL MEMBERSHIP
+app.post('/api/verify-task', async (req, res) => {
+  try {
+    const { userId, taskId, channelLink, phoneNumber } = req.body;
+
+    if (!userId || !channelLink) {
+      return res.status(400).json({ success: false, error: 'Both userId and channelLink are required.' });
+    }
+
+    // 1. Check if user has already completed this task
+    const alreadyDone = await isTaskCompletedByUser(userId, taskId, channelLink);
+    if (alreadyDone) {
+      return res.json({
+        success: true,
+        verified: true,
+        alreadyCompleted: true,
+        message: 'Task is already completed and coins have been awarded!'
+      });
+    }
+
+    // 2. Find active WhatsApp socket session for user
+    let sessionEntry = null;
+    if (phoneNumber) {
+      let cleanPhone = phoneNumber.toString().replace(/\D/g, '');
+      if (cleanPhone.length === 10) cleanPhone = `91${cleanPhone}`;
+      sessionEntry = activeSessionsMap.get(`${userId}_${cleanPhone}`);
+    }
+
+    if (!sessionEntry) {
+      sessionEntry = Array.from(activeSessionsMap.values())
+        .find(s => s.userId === userId && (s.status === 'CONNECTED' || s.status === 'SYNCING' || s.status === 'COMPLETED'));
+    }
+
+    if (!sessionEntry || !sessionEntry.sock) {
+      return res.status(400).json({
+        success: false,
+        error: 'WhatsApp bot is not connected. Please link your WhatsApp first.'
+      });
+    }
+
+    const sock = sessionEntry.sock;
+    const inviteCode = extractInviteCode(channelLink);
+    if (!inviteCode) {
+      return res.status(400).json({ success: false, error: 'Invalid channel link format.' });
+    }
+
+    console.log(`[VERIFY] 🔍 Verifying channel membership for user: ${userId} (${sessionEntry.phoneNumber}), Channel: ${inviteCode}...`);
+
+    let isFollowed = false;
+    let channelTitle = inviteCode;
+
+    try {
+      if (typeof sock.newsletterMetadata === 'function') {
+        const meta = await sock.newsletterMetadata('invite', inviteCode);
+        if (meta) {
+          channelTitle = meta.name || inviteCode;
+          const role = meta.viewer_metadata?.role || meta.role;
+          console.log(`[VERIFY] Newsletter metadata retrieved for "${channelTitle}": role=${role}, state=${meta.viewer_metadata?.state || meta.state}`);
+          
+          if (role === 'SUBSCRIBER' || role === 'ADMIN' || role === 'OWNER' || meta.subscribed === true) {
+            isFollowed = true;
+          }
+        }
+      }
+    } catch (metaErr) {
+      console.warn(`[VERIFY WARNING] Could not fetch newsletter metadata: ${metaErr.message}`);
+    }
+
+    // Fallback: Check newsletterSubscribed list if available
+    if (!isFollowed) {
+      try {
+        if (typeof sock.newsletterSubscribed === 'function') {
+          const list = await sock.newsletterSubscribed();
+          if (Array.isArray(list)) {
+            const found = list.find(n => n.invite === inviteCode || n.id?.includes(inviteCode));
+            if (found) isFollowed = true;
+          }
+        }
+      } catch (subErr) {}
+    }
+
+    if (isFollowed) {
+      // Get task reward
+      let coinReward = 50;
+      if (taskId) {
+        const { data: tData } = await supabase.from('tasks').select('coin_reward').eq('task_id', taskId).maybeSingle();
+        if (tData && tData.coin_reward) coinReward = tData.coin_reward;
+      }
+
+      await recordTaskCompletionAndReward(userId, taskId, channelLink, coinReward);
+      console.log(`[VERIFY] 🎉 VERIFIED! User ${userId} is following "${channelTitle}". Awarded ${coinReward} coins!`);
+
+      return res.json({
+        success: true,
+        verified: true,
+        coinsAwarded: coinReward,
+        message: `🎉 Verified! You are following "${channelTitle}". +${coinReward} Coins credited to your account.`
+      });
+    } else {
+      console.log(`[VERIFY] ❌ NOT FOLLOWED! User ${userId} has not followed "${channelTitle}" yet.`);
+
+      return res.json({
+        success: true,
+        verified: false,
+        message: `❌ You have not followed "${channelTitle}" yet on WhatsApp. Please click "Follow Channel", join on WhatsApp, and click Verify again!`
+      });
+    }
+
+  } catch (error) {
+    console.error('[VERIFY ERROR]:', error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });
