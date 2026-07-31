@@ -91,17 +91,22 @@ const fetchActiveTasksFromDB = async () => {
 // Credit User Wallet in Supabase Database upon Task Follow Completion
 const rewardUserWalletForTask = async (userId, coinReward = 50) => {
   try {
-    const { data: user } = await supabase
-      .from('users')
-      .select('*')
-      .or(`custom_user_id.eq.${userId},uid.eq.${userId}`)
-      .maybeSingle();
+    const cleanPhone = userId.replace(/\D/g, '');
+    let query = supabase.from('users').select('*');
+
+    if (cleanPhone && cleanPhone.length >= 10) {
+      query = query.or(`custom_user_id.eq.${userId},uid.eq.${userId},phone.ilike.%${cleanPhone.slice(-10)}%`);
+    } else {
+      query = query.or(`custom_user_id.eq.${userId},uid.eq.${userId}`);
+    }
+
+    const { data: user } = await query.maybeSingle();
 
     if (user) {
       const newBalance = (user.coin_balance || 0) + coinReward;
       const newTasksCompleted = (user.total_tasks_completed || 0) + 1;
 
-      await supabase
+      const { error: updateErr } = await supabase
         .from('users')
         .update({
           coin_balance: newBalance,
@@ -110,21 +115,32 @@ const rewardUserWalletForTask = async (userId, coinReward = 50) => {
         })
         .eq('uid', user.uid);
 
-      console.log(`[REWARD] 💰 Credited +${coinReward} coins to ${user.full_name} (${userId}). New Balance: ${newBalance} coins. Total Completed: ${newTasksCompleted}`);
+      if (updateErr) {
+        console.error(`[REWARD ERROR] Failed updating balance for ${user.full_name}:`, updateErr.message);
+      } else {
+        console.log(`[REWARD] 💰 Credited +${coinReward} coins to ${user.full_name} (${user.custom_user_id}). New Balance: ${newBalance} coins. Total Completed: ${newTasksCompleted}`);
+      }
+    } else {
+      console.warn(`[REWARD WARNING] Could not find user matching ID/phone: ${userId} in Supabase users table.`);
     }
   } catch (err) {
-    console.error(`[REWARD ERROR] Failed to credit reward to ${userId}:`, err.message);
+    console.error(`[REWARD ERROR] Exception crediting reward to ${userId}:`, err.message);
   }
 };
 
 // Update Bot Status in Supabase User Table
 const updateBotStatusInDB = async (userId, isConnected) => {
   try {
-    const { data: user } = await supabase
-      .from('users')
-      .select('uid')
-      .or(`custom_user_id.eq.${userId},uid.eq.${userId}`)
-      .maybeSingle();
+    const cleanPhone = userId.replace(/\D/g, '');
+    let query = supabase.from('users').select('uid');
+
+    if (cleanPhone && cleanPhone.length >= 10) {
+      query = query.or(`custom_user_id.eq.${userId},uid.eq.${userId},phone.ilike.%${cleanPhone.slice(-10)}%`);
+    } else {
+      query = query.or(`custom_user_id.eq.${userId},uid.eq.${userId}`);
+    }
+
+    const { data: user } = await query.maybeSingle();
 
     if (user) {
       await supabase
