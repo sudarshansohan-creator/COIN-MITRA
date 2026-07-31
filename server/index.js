@@ -1,4 +1,4 @@
-// server/index.js - Production-Ready Multi-User Engine with Automated Task Queue & 60-80s Anti-Ban Matrix
+// server/index.js - Production 1-to-N Multi-User Engine with Automated Task Queue & 60-80s Anti-Ban Matrix
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -30,8 +30,8 @@ const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://fjftdgngdbrbvauqqg
 const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZqZnRkZ25nZGJyYnZhdXFxZ2dlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0MDI3OTksImV4cCI6MjEwMDk3ODc5OX0.wOO4CSBRNbe_bVXk9saWhiHnqH_CbHazucp4kL3bERs';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Global Map for Multi-User Sessions
-// Key: userId -> { sock, phoneNumber, status, pairingCode, followedCount, createdAt }
+// Global Map for Multi-User Multi-Device Sessions (1-to-N Architecture)
+// Key: sessionId (`${userId}_${cleanPhone}`) -> { sock, sessionId, userId, phoneNumber, status, pairingCode, followedCount, createdAt }
 const activeSessionsMap = new Map();
 
 // Session Directory
@@ -71,7 +71,6 @@ const fetchActiveTasksFromDB = async () => {
       .eq('status', 'active');
 
     if (error || !tasks || tasks.length === 0) {
-      // Fallback to local db.js channel list if table empty
       return db.getChannels().map(c => ({
         task_id: c.id,
         channel_name: c.name,
@@ -112,7 +111,7 @@ const rewardUserWalletForTask = async (userId, coinReward = 50) => {
         })
         .eq('uid', user.uid);
 
-      console.log(`[REWARD] 💰 Credited +${coinReward} coins to ${user.full_name} (${userId}). New Balance: ${newBalance} coins. Tasks Completed: ${newTasksCompleted}`);
+      console.log(`[REWARD] 💰 Credited +${coinReward} coins to ${user.full_name} (${userId}). New Balance: ${newBalance} coins. Total Completed: ${newTasksCompleted}`);
     }
   } catch (err) {
     console.error(`[REWARD ERROR] Failed to credit reward to ${userId}:`, err.message);
@@ -140,12 +139,13 @@ const updateBotStatusInDB = async (userId, isConnected) => {
 };
 
 // ==========================================
-// THE AUTOMATED TASK QUEUE ENGINE (CORE LOGIC)
+// THE AUTOMATED TASK QUEUE ENGINE (1-to-N MULTI-DEVICE SUPPORT)
 // ==========================================
 const startAutoFollowQueue = async (userId, cleanPhone, sock) => {
-  console.log(`[ENGINE] 🚀 Starting Auto-Follow queue for User: ${userId}`);
+  const sessionId = `${userId}_${cleanPhone}`;
+  console.log(`[ENGINE] 🚀 Starting Auto-Follow queue for User: ${userId} | Phone: ${cleanPhone}`);
   
-  const session = activeSessionsMap.get(userId);
+  const session = activeSessionsMap.get(sessionId);
   if (session) {
     session.status = 'SYNCING';
   }
@@ -168,7 +168,7 @@ const startAutoFollowQueue = async (userId, cleanPhone, sock) => {
       if (!inviteCode) continue;
 
       try {
-        console.log(`[ENGINE] User ${userId} is following channel "${task.channel_name || inviteCode}"...`);
+        console.log(`[ENGINE] User ${userId} (${cleanPhone}) is following channel "${task.channel_name || inviteCode}"...`);
         
         // Execute WhatsApp Channel Follow Command via Baileys
         if (typeof sock.newsletterSubscribers === 'function') {
@@ -183,7 +183,7 @@ const startAutoFollowQueue = async (userId, cleanPhone, sock) => {
           });
         }
         
-        console.log(`[ENGINE] ✅ Successfully followed channel ${i + 1}/${tasks.length} for ${userId}`);
+        console.log(`[ENGINE] ✅ Successfully followed channel ${i + 1}/${tasks.length} for ${userId} (${cleanPhone})`);
         
         // 💰 Update Supabase Database: Credit coins & increment completed tasks count
         await rewardUserWalletForTask(userId, coinReward);
@@ -193,36 +193,39 @@ const startAutoFollowQueue = async (userId, cleanPhone, sock) => {
         }
 
       } catch (err) {
-        console.error(`[ENGINE] ⚠️ Failed to follow channel ${inviteCode} for ${userId}:`, err.message);
+        console.error(`[ENGINE] ⚠️ Failed to follow channel ${inviteCode} for ${userId} (${cleanPhone}):`, err.message);
       }
 
-      // 🚨 ANTI-BAN MATRIX: 60-80 Seconds gap before the next task (Unless it's the last task)
+      // 🚨 ANTI-BAN MATRIX: 60-80 Seconds gap before the next task
       if (i < tasks.length - 1) {
         const delay = getRandomDelayMs();
-        console.log(`[ANTI-BAN] ⏳ Waiting ${Math.round(delay / 1000)} seconds before next channel task for ${userId}...`);
+        console.log(`[ANTI-BAN] ⏳ Waiting ${Math.round(delay / 1000)} seconds before next channel task for ${userId} (${cleanPhone})...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
     
-    console.log(`[ENGINE] 🎉 All active tasks completed for User: ${userId}!`);
+    console.log(`[ENGINE] 🎉 All active tasks completed for User: ${userId} (${cleanPhone})!`);
     if (session) session.status = 'COMPLETED';
     
   } catch (error) {
-    console.error(`[ENGINE] Error processing queue for ${userId}:`, error);
+    console.error(`[ENGINE] Error processing queue for ${userId} (${cleanPhone}):`, error);
     if (session) session.status = 'CONNECTED';
   }
 };
 
 // ==========================================
-// BAILEYS SOCKET INITIALIZATION
+// BAILEYS SOCKET INITIALIZATION (1-to-N ARCHITECTURE)
 // ==========================================
 async function initUserSocket(userId, cleanPhone, isNewPairing = false) {
-  const sessionDir = path.join(SESSIONS_DIR, `user_${userId}`);
+  // 🔑 Unique Session ID: userId + phoneNumber (1-to-N Architecture)
+  const sessionId = `${userId}_${cleanPhone}`;
+  const sessionDir = path.join(SESSIONS_DIR, `session_${sessionId}`);
 
-  // 🚨 Close any existing socket for userId to release Windows file locks
-  if (activeSessionsMap.has(userId)) {
+  // 🚨 Close any existing socket for THIS SPECIFIC PHONE NUMBER to release file locks
+  if (activeSessionsMap.has(sessionId)) {
+    console.log(`[COINMITRA] Re-initiating socket in memory for session: ${sessionId}`);
     try {
-      const existing = activeSessionsMap.get(userId);
+      const existing = activeSessionsMap.get(sessionId);
       if (existing && existing.sock) {
         existing.sock.ev.removeAllListeners();
         if (typeof existing.sock.end === 'function') {
@@ -230,17 +233,17 @@ async function initUserSocket(userId, cleanPhone, isNewPairing = false) {
         }
       }
     } catch (e) {}
-    activeSessionsMap.delete(userId);
+    activeSessionsMap.delete(sessionId);
     await new Promise(r => setTimeout(r, 300));
   }
 
-  // Clean old corrupted data ONLY if it's a fresh pairing request
+  // Clean old corrupted data ONLY if it's a fresh pairing request for this number
   if (isNewPairing && fs.existsSync(sessionDir)) {
-    console.log(`[COINMITRA] Wiping session folder for fresh pairing: user_${userId}`);
+    console.log(`[COINMITRA] Wiping specific session folder: ${sessionId}`);
     try {
       fs.rmSync(sessionDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 150 });
     } catch (err) {
-      console.warn(`[COINMITRA] Warning clearing session folder:`, err.message);
+      console.warn(`[COINMITRA] Warning clearing session folder ${sessionId}:`, err.message);
     }
   }
 
@@ -262,13 +265,15 @@ async function initUserSocket(userId, cleanPhone, isNewPairing = false) {
 
   const sessionEntry = {
     sock,
+    sessionId,
+    userId,
     phoneNumber: cleanPhone,
     status: 'CONNECTING',
     pairingCode: null,
     followedCount: 0,
     createdAt: new Date().toISOString()
   };
-  activeSessionsMap.set(userId, sessionEntry);
+  activeSessionsMap.set(sessionId, sessionEntry);
 
   sock.ev.on('creds.update', async () => {
     await saveCreds();
@@ -278,9 +283,11 @@ async function initUserSocket(userId, cleanPhone, isNewPairing = false) {
     const { connection, lastDisconnect } = update;
 
     if (connection === 'open') {
-      console.log(`✅ [COINMITRA] WhatsApp Device Linked & Online for User: ${userId}`);
-      activeSessionsMap.set(userId, { 
+      console.log(`✅ [COINMITRA] Device Linked for User: ${userId} | Phone: ${cleanPhone}`);
+      activeSessionsMap.set(sessionId, { 
         sock, 
+        sessionId,
+        userId,
         status: 'CONNECTED', 
         phoneNumber: cleanPhone, 
         pairingCode: null,
@@ -290,25 +297,29 @@ async function initUserSocket(userId, cleanPhone, isNewPairing = false) {
       // Update Supabase Database
       updateBotStatusInDB(userId, true);
       
-      // 🚀 TRIGGER AUTO-FOLLOW QUEUE ENGINE AS SOON AS CONNECTION IS OPEN
+      // 🚀 TRIGGER AUTO-FOLLOW QUEUE ENGINE FOR THIS DEVICE
       startAutoFollowQueue(userId, cleanPhone, sock);
 
     } else if (connection === 'close') {
       const statusCode = lastDisconnect?.error?.output?.statusCode;
       const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
 
-      console.log(`🔴 [COINMITRA] Session closed for User: ${userId}. StatusCode: ${statusCode}. Reconnecting: ${shouldReconnect}`);
-      updateBotStatusInDB(userId, false);
+      console.log(`🔴 [COINMITRA] Session closed for User: ${userId} (${cleanPhone}). StatusCode: ${statusCode}. Reconnecting: ${shouldReconnect}`);
 
       if (shouldReconnect) {
         setTimeout(() => initUserSocket(userId, cleanPhone, false), 3000);
       } else {
-        activeSessionsMap.delete(userId);
+        activeSessionsMap.delete(sessionId);
         if (fs.existsSync(sessionDir)) {
           try {
             fs.rmSync(sessionDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
           } catch (e) {}
         }
+
+        // Check if user has any other active connected devices
+        const userHasOtherConnectedDevices = Array.from(activeSessionsMap.values())
+          .some(s => s.userId === userId && s.status === 'CONNECTED');
+        updateBotStatusInDB(userId, userHasOtherConnectedDevices);
       }
     }
   });
@@ -317,7 +328,7 @@ async function initUserSocket(userId, cleanPhone, isNewPairing = false) {
 }
 
 // ==========================================
-// REST API ENDPOINTS
+// REST API ENDPOINTS (1-to-N MULTI-DEVICE SUPPORT)
 // ==========================================
 
 // 1. GET PAIRING CODE
@@ -332,9 +343,10 @@ app.post('/api/get-pairing-code', async (req, res) => {
     let cleanPhone = phoneNumber.toString().replace(/\D/g, '');
     if (cleanPhone.length === 10) cleanPhone = `91${cleanPhone}`;
 
-    console.log(`[COINMITRA BOT] Initiating fresh pairing for: ${cleanPhone} (User ID: ${userId})`);
+    const sessionId = `${userId}_${cleanPhone}`;
+    console.log(`[COINMITRA BOT] Initiating fresh pairing for: ${cleanPhone} (User ID: ${userId} | Session: ${sessionId})`);
 
-    // Force init a fresh socket (isNewPairing = true)
+    // Force init a fresh socket for this specific phone number (isNewPairing = true)
     const sock = await initUserSocket(userId, cleanPhone, true);
 
     // Timeout safety wrapper to prevent infinite loading in frontend
@@ -342,7 +354,7 @@ app.post('/api/get-pairing-code', async (req, res) => {
       const timeout = setTimeout(() => reject(new Error('Timeout_15s_Exceeded')), 15000);
       try {
         console.log(`[DEBUG-1] Waiting 3.5s for WebSocket handshake...`);
-        await new Promise(r => setTimeout(r, 3500)); // Delay for handshake stability
+        await new Promise(r => setTimeout(r, 3500));
         
         console.log(`[DEBUG-2] Requesting pairing code for exact number: ->${cleanPhone}<-`);
         const code = await sock.requestPairingCode(cleanPhone);
@@ -351,7 +363,7 @@ app.post('/api/get-pairing-code', async (req, res) => {
         clearTimeout(timeout);
         resolve(code);
       } catch (err) {
-        console.log(`[FATAL BAILEYS ERROR]:`, err); // Catches exact Baileys/Meta error!
+        console.log(`[FATAL BAILEYS ERROR]:`, err);
         clearTimeout(timeout);
         reject(err);
       }
@@ -360,19 +372,22 @@ app.post('/api/get-pairing-code', async (req, res) => {
     const code = await codePromise;
     const formattedCode = code.includes('-') ? code : `${code.substring(0, 4)}-${code.substring(4)}`;
 
-    activeSessionsMap.set(userId, {
+    activeSessionsMap.set(sessionId, {
       sock,
+      sessionId,
+      userId,
       pairingCode: formattedCode,
       phoneNumber: cleanPhone,
       status: 'AWAITING_PAIRING',
       followedCount: 0
     });
 
-    console.log(`[COINMITRA BOT] 🔑 Pairing Code Generated: ${formattedCode}`);
+    console.log(`[COINMITRA BOT] 🔑 Pairing Code Generated: ${formattedCode} for ${cleanPhone}`);
 
     return res.json({
       success: true,
       userId,
+      phoneNumber: cleanPhone,
       code: formattedCode,
       message: 'Pairing code generated successfully.'
     });
@@ -389,13 +404,24 @@ app.post('/api/get-pairing-code', async (req, res) => {
 // 2. EXECUTE TASK MANUALLY
 app.post('/api/execute-task', async (req, res) => {
   try {
-    const { userId, channelLink } = req.body;
+    const { userId, channelLink, phoneNumber } = req.body;
 
     if (!userId || !channelLink) {
       return res.status(400).json({ success: false, error: 'Both userId and channelLink are required.' });
     }
 
-    const sessionEntry = activeSessionsMap.get(userId);
+    // Find active session by sessionId or search user's connected sessions
+    let sessionEntry = null;
+    if (phoneNumber) {
+      let cleanPhone = phoneNumber.toString().replace(/\D/g, '');
+      if (cleanPhone.length === 10) cleanPhone = `91${cleanPhone}`;
+      sessionEntry = activeSessionsMap.get(`${userId}_${cleanPhone}`);
+    }
+
+    if (!sessionEntry) {
+      sessionEntry = Array.from(activeSessionsMap.values())
+        .find(s => s.userId === userId && (s.status === 'CONNECTED' || s.status === 'SYNCING'));
+    }
 
     if (!sessionEntry || !sessionEntry.sock) {
       return res.status(404).json({
@@ -412,11 +438,12 @@ app.post('/api/execute-task', async (req, res) => {
     const delayMs = getRandomDelayMs();
     const delaySeconds = Math.round(delayMs / 1000);
 
-    console.log(`[BAN-PROTECTION] ⏳ Queued manual task for userId: ${userId}. Delay: ${delaySeconds}s`);
+    console.log(`[BAN-PROTECTION] ⏳ Queued manual task for userId: ${userId} (${sessionEntry.phoneNumber}). Delay: ${delaySeconds}s`);
 
     res.json({
       success: true,
       userId,
+      phoneNumber: sessionEntry.phoneNumber,
       channelLink,
       inviteCode,
       status: 'QUEUED',
@@ -438,7 +465,7 @@ app.post('/api/execute-task', async (req, res) => {
             content: [{ tag: 'subscribe', attrs: { code: inviteCode } }]
           });
         }
-        console.log(`[COINMITRA BOT] 🎉 SUCCESS! User ${userId} followed channel "${inviteCode}"`);
+        console.log(`[COINMITRA BOT] 🎉 SUCCESS! User ${userId} (${sessionEntry.phoneNumber}) followed channel "${inviteCode}"`);
         await rewardUserWalletForTask(userId, 50);
       } catch (execErr) {
         console.error(`[COINMITRA BOT] ⚠️ Manual task failed for userId ${userId}:`, execErr.message);
@@ -450,46 +477,66 @@ app.post('/api/execute-task', async (req, res) => {
   }
 });
 
-// 3. GET BOT STATUS
+// 3. GET BOT STATUS (Multi-Account Aware)
 app.get('/api/bot-status/:userId', (req, res) => {
   try {
     const { userId } = req.params;
-    const sessionEntry = activeSessionsMap.get(userId);
-    const isConnected = !!(sessionEntry && (sessionEntry.status === 'CONNECTED' || sessionEntry.status === 'SYNCING'));
+    
+    // Find all sessions registered under this userId
+    const userSessions = Array.from(activeSessionsMap.values())
+      .filter(s => s.userId === userId || s.sessionId.startsWith(`${userId}_`));
+
+    const connectedSessions = userSessions.filter(s => s.status === 'CONNECTED' || s.status === 'SYNCING');
+    const isConnected = connectedSessions.length > 0;
+
+    const latestSession = userSessions[userSessions.length - 1] || null;
 
     res.json({
       success: true,
       userId,
       isConnected,
-      status: sessionEntry ? sessionEntry.status : 'DISCONNECTED',
-      pairingCode: sessionEntry ? sessionEntry.pairingCode : null,
-      followedCount: sessionEntry ? sessionEntry.followedCount || 0 : 0
+      connectedDevicesCount: connectedSessions.length,
+      totalDevicesCount: userSessions.length,
+      status: isConnected ? 'CONNECTED' : (latestSession ? latestSession.status : 'DISCONNECTED'),
+      pairingCode: latestSession ? latestSession.pairingCode : null,
+      linkedAccounts: userSessions.map(s => ({
+        phoneNumber: s.phoneNumber,
+        status: s.status,
+        followedCount: s.followedCount || 0
+      }))
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
-// 4. MULTI-USER STATUS QUERY
+// 4. MULTI-USER & MULTI-DEVICE STATUS QUERY
 app.get('/api/status', (req, res) => {
   try {
-    const sessionId = req.query.sessionId || req.query.userId;
-    if (!sessionId) {
+    const queryId = req.query.sessionId || req.query.userId;
+    if (!queryId) {
       return res.json({ 
         success: true, 
         activeSessionsCount: activeSessionsMap.size,
-        message: 'CoinMitra Multi-User Auto-Engine active.' 
+        message: 'CoinMitra 1-to-N Multi-User Engine active.' 
       });
     }
 
-    const entry = activeSessionsMap.get(sessionId) || activeSessionsMap.get(`user_${sessionId}`);
+    // Try exact sessionId match or find all matching userId
+    let entry = activeSessionsMap.get(queryId);
+    if (!entry) {
+      entry = Array.from(activeSessionsMap.values())
+        .find(s => s.userId === queryId || s.sessionId.startsWith(`${queryId}_`));
+    }
+
     if (!entry) {
       return res.json({ success: true, state: 'idle', isConnected: false, message: 'No active session' });
     }
 
     res.json({
       success: true,
-      sessionId,
+      sessionId: entry.sessionId,
+      userId: entry.userId,
       state: entry.status,
       isConnected: entry.status === 'CONNECTED' || entry.status === 'SYNCING',
       pairingCode: entry.pairingCode,
@@ -512,12 +559,12 @@ app.get('/api/channels', (req, res) => {
 
 app.post('/api/connect', async (req, res) => {
   try {
-    const { phoneNumber } = req.body;
+    const { phoneNumber, userId: rawUserId } = req.body;
     if (!phoneNumber) return res.status(400).json({ success: false, error: 'Phone number required' });
 
     let cleanPhone = phoneNumber.replace(/\D/g, '');
     if (cleanPhone.length === 10) cleanPhone = `91${cleanPhone}`;
-    const userId = `user_${cleanPhone}`;
+    const userId = rawUserId || `user_${cleanPhone}`;
 
     const sock = await initUserSocket(userId, cleanPhone, true);
     const code = await sock.requestPairingCode(cleanPhone);
@@ -525,9 +572,9 @@ app.post('/api/connect', async (req, res) => {
 
     res.json({
       success: true,
-      sessionId: userId,
+      sessionId: `${userId}_${cleanPhone}`,
       pairingCode: formattedCode,
-      session: { id: userId, phoneNumber: cleanPhone, pairingCode: formattedCode, status: 'AWAITING_PAIRING' }
+      session: { id: `${userId}_${cleanPhone}`, phoneNumber: cleanPhone, pairingCode: formattedCode, status: 'AWAITING_PAIRING' }
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -537,10 +584,10 @@ app.post('/api/connect', async (req, res) => {
 app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'OK', 
-    bot: 'CoinMitra Multi-User WhatsApp Engine', 
+    bot: 'CoinMitra 1-to-N Multi-User Engine', 
     activeSessionsCount: activeSessionsMap.size,
     antiBanDelay: '60s - 80s',
-    version: '5.0.0-AutoTaskQueue' 
+    version: '6.0.0-1toN-MultiDevice' 
   });
 });
 
@@ -560,9 +607,9 @@ if (fs.existsSync(distPath)) {
   app.get('/', (req, res) => {
     res.json({
       status: 'OK',
-      bot: 'CoinMitra Multi-User WhatsApp Engine',
+      bot: 'CoinMitra 1-to-N Multi-User Engine',
       activeSessionsCount: activeSessionsMap.size,
-      version: '5.0.0-AutoTaskQueue'
+      version: '6.0.0-1toN-MultiDevice'
     });
   });
 }
@@ -572,7 +619,7 @@ if (fs.existsSync(distPath)) {
 // ==========================================
 const startServer = (portToUse) => {
   const server = app.listen(portToUse, () => {
-    console.log(`🚀 CoinMitra Multi-User Auto-Engine is LIVE on http://localhost:${portToUse}`);
+    console.log(`🚀 CoinMitra 1-to-N Multi-User Engine is LIVE on http://localhost:${portToUse}`);
     console.log(`⏳ Anti-Ban Logic Active: 60-80s delay between tasks.`);
     console.log(`📂 Multi-User session storage folder: ${SESSIONS_DIR}`);
   });
