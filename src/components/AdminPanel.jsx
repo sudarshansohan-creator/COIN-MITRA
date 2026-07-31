@@ -292,34 +292,45 @@ export default function AdminPanel({ isOpen, onClose }) {
     }
   };
 
-  // Add New Task
+  // Add New Task to Supabase Table
   const handleAddTaskSubmit = async (e) => {
     e.preventDefault();
-    if (!taskForm.channel_name || !taskForm.channel_link) return;
+    setSuccessMsg('');
+    if (!taskForm.channel_name || !taskForm.channel_link) {
+      alert('Please fill in both Channel Name and Channel Link.');
+      return;
+    }
 
+    setLoading(true);
     try {
       const { data, error } = await supabase
         .from('tasks')
         .insert([
           {
-            channel_name: taskForm.channel_name,
-            channel_link: taskForm.channel_link,
-            target_count: Number(taskForm.target_count),
-            coin_reward: Number(taskForm.coin_reward),
+            channel_name: taskForm.channel_name.trim(),
+            channel_link: taskForm.channel_link.trim(),
+            target_count: Number(taskForm.target_count) || 1000,
+            coin_reward: Number(taskForm.coin_reward) || 50,
             status: 'active'
           }
         ])
         .select()
         .single();
 
-      if (!error && data) {
-        setTasks([data, ...tasks]);
-        setSuccessMsg(`Channel "${taskForm.channel_name}" added successfully!`);
+      if (error) {
+        console.error('Supabase Task Insert Error:', error);
+        alert(`❌ Supabase Database Error: ${error.message}\n\nPlease make sure the "tasks" table is created in your Supabase SQL Editor.`);
+      } else if (data) {
+        setTasks(prev => [data, ...prev]);
+        setSuccessMsg(`✅ Channel "${taskForm.channel_name}" added successfully to Supabase!`);
         setTaskForm({ channel_name: '', channel_link: '', target_count: 1000, coin_reward: 50 });
         setTimeout(() => { setSuccessMsg(''); setActiveTab('tasks'); }, 1500);
       }
     } catch (err) {
-      alert('Failed to add task.');
+      console.error('Task Submission Exception:', err);
+      alert('❌ Failed to add task: ' + err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
