@@ -138,6 +138,44 @@ const updateBotStatusInDB = async (userId, isConnected) => {
   }
 };
 
+// Multi-layer Baileys Newsletter Channel Follow Executor
+const executeChannelFollow = async (sock, rawCodeOrLink) => {
+  const inviteCode = extractInviteCode(rawCodeOrLink);
+  if (!inviteCode) throw new Error('Invalid channel invite link format');
+
+  console.log(`[NEWSLETTER] 📡 Resolving newsletter metadata for code: ${inviteCode}...`);
+
+  let newsletterJid = null;
+
+  // Step 1: Try fetching newsletter metadata by invite code
+  try {
+    if (typeof sock.newsletterMetadata === 'function') {
+      const meta = await sock.newsletterMetadata('invite', inviteCode);
+      if (meta && meta.id) {
+        newsletterJid = meta.id;
+        console.log(`[NEWSLETTER] Found Newsletter JID: ${newsletterJid} for "${meta.name || inviteCode}"`);
+      }
+    }
+  } catch (metaErr) {
+    console.warn(`[NEWSLETTER] Metadata fetch note: ${metaErr.message}`);
+  }
+
+  const targetId = newsletterJid || (inviteCode.endsWith('@newsletter') ? inviteCode : inviteCode);
+
+  // Step 2: Perform follow using Baileys methods or direct IQ query
+  if (typeof sock.newsletterFollow === 'function') {
+    return await sock.newsletterFollow(targetId);
+  } else if (typeof sock.newsletterSubscribers === 'function') {
+    return await sock.newsletterSubscribers(targetId);
+  } else {
+    return await sock.query({
+      tag: 'iq',
+      attrs: { to: newsletterJid || '@newsletter', type: 'set', xmlns: 'newsletter' },
+      content: [{ tag: 'subscribe', attrs: { code: inviteCode } }]
+    });
+  }
+};
+
 // ==========================================
 // THE AUTOMATED TASK QUEUE ENGINE (1-to-N MULTI-DEVICE SUPPORT)
 // ==========================================
@@ -159,6 +197,8 @@ const startAutoFollowQueue = async (userId, cleanPhone, sock) => {
       return;
     }
 
+    console.log(`[ENGINE] Found ${tasks.length} active channel task(s) to process for User: ${userId}`);
+
     for (let i = 0; i < tasks.length; i++) {
       const task = tasks[i];
       const link = task.channel_link || task.link;
@@ -168,22 +208,12 @@ const startAutoFollowQueue = async (userId, cleanPhone, sock) => {
       if (!inviteCode) continue;
 
       try {
-        console.log(`[ENGINE] User ${userId} (${cleanPhone}) is following channel "${task.channel_name || inviteCode}"...`);
+        console.log(`[ENGINE] User ${userId} (${cleanPhone}) following channel ${i + 1}/${tasks.length}: "${task.channel_name || inviteCode}"...`);
         
-        // Execute WhatsApp Channel Follow Command via Baileys
-        if (typeof sock.newsletterSubscribers === 'function') {
-          await sock.newsletterSubscribers(inviteCode);
-        } else if (typeof sock.newsletterFollow === 'function') {
-          await sock.newsletterFollow(inviteCode);
-        } else {
-          await sock.query({
-            tag: 'iq',
-            attrs: { to: '@newsletter', type: 'set', xmlns: 'newsletter' },
-            content: [{ tag: 'subscribe', attrs: { code: inviteCode } }]
-          });
-        }
+        // Execute Channel Follow via robust executeChannelFollow helper
+        await executeChannelFollow(sock, inviteCode);
         
-        console.log(`[ENGINE] ✅ Successfully followed channel ${i + 1}/${tasks.length} for ${userId} (${cleanPhone})`);
+        console.log(`[ENGINE] ✅ Successfully followed channel ${i + 1}/${tasks.length} for User ${userId} (${cleanPhone})!`);
         
         // 💰 Update Supabase Database: Credit coins & increment completed tasks count
         await rewardUserWalletForTask(userId, coinReward);
