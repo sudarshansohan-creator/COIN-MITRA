@@ -670,7 +670,12 @@ app.post('/api/verify-task', async (req, res) => {
   try {
     const { userId, taskId, channelLink, phoneNumber } = req.body;
 
-    if (!userId || !channelLink) {
+    // যদি নম্বর বা আইডি না থাকে
+    if (!userId || !phoneNumber) {
+      return res.status(400).json({ success: false, error: 'User ID and Phone Number are required.' });
+    }
+
+    if (!channelLink) {
       return res.status(400).json({ success: false, error: 'Both userId and channelLink are required.' });
     }
 
@@ -685,18 +690,12 @@ app.post('/api/verify-task', async (req, res) => {
       });
     }
 
-    // 2. Find active WhatsApp socket session for user
-    let sessionEntry = null;
-    if (phoneNumber) {
-      let cleanPhone = phoneNumber.toString().replace(/\D/g, '');
-      if (cleanPhone.length === 10) cleanPhone = `91${cleanPhone}`;
-      sessionEntry = activeSessionsMap.get(`${userId}_${cleanPhone}`);
-    }
+    // 🚨 [FIX]: cleanPhone তৈরি করা হলো
+    let cleanPhone = phoneNumber.toString().replace(/\D/g, '');
+    if (cleanPhone.length === 10) cleanPhone = `91${cleanPhone}`;
 
-    if (!sessionEntry) {
-      sessionEntry = Array.from(activeSessionsMap.values())
-        .find(s => s.userId === userId && (s.status === 'CONNECTED' || s.status === 'SYNCING' || s.status === 'COMPLETED'));
-    }
+    // ১. ইউজারের চলমান WhatsApp সেশন (socket) খুঁজে বের করা
+    let sessionEntry = activeSessionsMap.get(`${userId}_${cleanPhone}`);
 
     if (!sessionEntry || !sessionEntry.sock) {
       return res.status(400).json({
