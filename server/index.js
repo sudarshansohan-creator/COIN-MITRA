@@ -26,8 +26,8 @@ app.use(cors());
 app.use(express.json());
 
 // Initialize Supabase JS Client
-const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://fjftdgngdbrbvauqqgge.supabase.co';
-const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZqZnRkZ25nZGJyYnZhdXFxZ2dlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0MDI3OTksImV4cCI6MjEwMDk3ODc5OX0.wOO4CSBRNbe_bVXk9saWhiHnqH_CbHazucp4kL3bERs';
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://fjftdgngdbrbvauqqgge.supabase.co';
+const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZqZnRkZ25nZGJyYnZhdXFxZ2dlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0MDI3OTksImV4cCI6MjEwMDk3ODc5OX0.wOO4CSBRNbe_bVXk9saWhiHnqH_CbHazucp4kL3bERs';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Global Map for Multi-User Multi-Device Sessions (1-to-N Architecture)
@@ -62,7 +62,7 @@ const extractInviteCode = (link) => {
   return match && match[1] ? match[1] : link.split('/').pop().trim();
 };
 
-// Fetch Active Tasks from Supabase Database
+// Fetch Active Tasks from Live Supabase Database
 const fetchActiveTasksFromDB = async () => {
   try {
     const { data: tasks, error } = await supabase
@@ -70,22 +70,21 @@ const fetchActiveTasksFromDB = async () => {
       .select('*')
       .eq('status', 'active');
 
-    if (error || !tasks || tasks.length === 0) {
-      return db.getChannels().map(c => ({
-        task_id: c.id,
-        channel_name: c.name,
-        channel_link: c.link || c.channel_link,
-        coin_reward: 50
-      }));
+    if (error) {
+      console.error("[DATABASE] Error fetching active tasks:", error.message);
+      return [];
     }
+
+    if (!tasks || tasks.length === 0) {
+      console.log("[DATABASE] No active tasks found in Supabase table.");
+      return [];
+    }
+
+    console.log(`[DATABASE] Successfully fetched ${tasks.length} active task(s) from Supabase panel.`);
     return tasks;
   } catch (err) {
-    return db.getChannels().map(c => ({
-      task_id: c.id,
-      channel_name: c.name,
-      channel_link: c.link || c.channel_link,
-      coin_reward: 50
-    }));
+    console.error("[DATABASE] Connection Failed:", err);
+    return [];
   }
 };
 
