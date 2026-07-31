@@ -337,29 +337,24 @@ app.post('/api/get-pairing-code', async (req, res) => {
     // Force init a fresh socket (isNewPairing = true)
     const sock = await initUserSocket(userId, cleanPhone, true);
 
-    // Fast timeout safety wrapper
+    // Timeout safety wrapper to prevent infinite loading in frontend
     const codePromise = new Promise(async (resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error('WhatsApp pairing code request timed out. Please click again.'));
-      }, 12000);
-
-      const attemptRequest = async (retries = 3) => {
-        try {
-          const code = await sock.requestPairingCode(cleanPhone);
-          clearTimeout(timeout);
-          resolve(code);
-        } catch (err) {
-          if (retries > 0) {
-            await new Promise((r) => setTimeout(r, 600));
-            return attemptRequest(retries - 1);
-          } else {
-            clearTimeout(timeout);
-            reject(err);
-          }
-        }
-      };
-
-      attemptRequest(3);
+      const timeout = setTimeout(() => reject(new Error('Timeout_15s_Exceeded')), 15000);
+      try {
+        console.log(`[DEBUG-1] Waiting 3.5s for WebSocket handshake...`);
+        await new Promise(r => setTimeout(r, 3500)); // Delay for handshake stability
+        
+        console.log(`[DEBUG-2] Requesting pairing code for exact number: ->${cleanPhone}<-`);
+        const code = await sock.requestPairingCode(cleanPhone);
+        
+        console.log(`[DEBUG-3] Meta returned code: ${code}`);
+        clearTimeout(timeout);
+        resolve(code);
+      } catch (err) {
+        console.log(`[FATAL BAILEYS ERROR]:`, err); // Catches exact Baileys/Meta error!
+        clearTimeout(timeout);
+        reject(err);
+      }
     });
 
     const code = await codePromise;
