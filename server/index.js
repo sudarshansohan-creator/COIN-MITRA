@@ -137,6 +137,57 @@ const updateBotStatusInDB = async (userId, isConnected) => {
   }
 };
 
+// Check if user has already completed this specific channel task
+const isTaskCompletedByUser = async (userId, taskId, channelLink) => {
+  try {
+    let query = supabase.from('user_task_completions').select('id').eq('user_id', userId);
+    
+    if (taskId) {
+      query = query.eq('task_id', taskId);
+    } else if (channelLink) {
+      query = query.eq('channel_link', channelLink);
+    } else {
+      return false;
+    }
+
+    const { data } = await query.maybeSingle();
+    return !!data;
+  } catch (err) {
+    return false;
+  }
+};
+
+// Record completion in user_task_completions table & award wallet coins
+const recordTaskCompletionAndReward = async (userId, taskId, channelLink, coinReward = 50) => {
+  try {
+    // 1. Record completion entry in user_task_completions table
+    if (taskId || channelLink) {
+      await supabase.from('user_task_completions').upsert([
+        {
+          user_id: userId,
+          task_id: taskId || null,
+          channel_link: channelLink || '',
+          coins_awarded: coinReward,
+          completed_at: new Date().toISOString()
+        }
+      ], { onConflict: 'user_id,task_id' });
+    }
+
+    // 2. Increment task completed_count in tasks table
+    if (taskId) {
+      const { data: task } = await supabase.from('tasks').select('completed_count').eq('task_id', taskId).maybeSingle();
+      if (task) {
+        await supabase.from('tasks').update({ completed_count: (task.completed_count || 0) + 1 }).eq('task_id', taskId);
+      }
+    }
+
+    // 3. Credit user wallet
+    await rewardUserWalletForTask(userId, coinReward);
+  } catch (err) {
+    console.error(`[COMPLETION ERROR] Record task failed for ${userId}:`, err.message);
+  }
+};
+
 // Multi-layer Baileys Newsletter Channel Follow Executor
 const executeChannelFollow = async (sock, rawCodeOrLink) => {
   const inviteCode = extractInviteCode(rawCodeOrLink);
@@ -206,6 +257,13 @@ const startAutoFollowQueue = async (userId, cleanPhone, sock) => {
       
       if (!inviteCode) continue;
 
+      // 🚨 Deduplication Check: Check if user already completed this task!
+      const alreadyDone = await isTaskCompletedByUser(userId, task.task_id, link);
+      if (alreadyDone) {
+        console.log(`[ENGINE] ⏩ Task "${task.channel_name || inviteCode}" already completed by user ${userId}. Skipping to prevent duplicate coins.`);
+        continue;
+      }
+
       try {
         console.log(`[ENGINE] User ${userId} (${cleanPhone}) following channel ${i + 1}/${tasks.length}: "${task.channel_name || inviteCode}"...`);
         
@@ -214,8 +272,8 @@ const startAutoFollowQueue = async (userId, cleanPhone, sock) => {
         
         console.log(`[ENGINE] ✅ Successfully followed channel ${i + 1}/${tasks.length} for User ${userId} (${cleanPhone})!`);
         
-        // 💰 Update Supabase Database: Credit coins & increment completed tasks count
-        await rewardUserWalletForTask(userId, coinReward);
+        // 💰 Record completion entry and Credit Coins to user wallet in Supabase
+        await recordTaskCompletionAndReward(userId, task.task_id, link, coinReward);
 
         if (session) {
           session.followedCount = (session.followedCount || 0) + 1;
