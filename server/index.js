@@ -487,6 +487,27 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// 🌐 Serve Vite Production Build Frontend & SPA Fallback Route
+const distPath = path.join(__dirname, '../dist');
+if (fs.existsSync(distPath)) {
+  app.use(express.static(distPath));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) {
+      return next();
+    }
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+} else {
+  app.get('/', (req, res) => {
+    res.json({
+      status: 'OK',
+      bot: 'CoinMitra Multi-User WhatsApp Engine',
+      activeSessionsCount: activeSessionsMap.size,
+      version: '4.0.0-MultiUserMap'
+    });
+  });
+}
+
 const startServer = (portToUse) => {
   const server = app.listen(portToUse, () => {
     console.log(`🚀 CoinMitra Multi-User WhatsApp Engine running on http://localhost:${portToUse}`);
