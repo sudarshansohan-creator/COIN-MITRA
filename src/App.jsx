@@ -1,4 +1,4 @@
-// src/App.jsx - Main Application Container with Supabase Global Realtime Sync & Auth Guard
+// src/App.jsx - Main Application Container with Unified Live Status Polling & Global Realtime Sync
 import React, { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
 import AuthScreen from './components/AuthScreen';
@@ -20,6 +20,10 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [logs, setLogs] = useState([]);
   const [initializing, setInitializing] = useState(true);
+
+  // Global Unified Live Bot Status across all tabs & screens
+  const [liveBotStatus, setLiveBotStatus] = useState('DISCONNECTED');
+  const [livePairingCode, setLivePairingCode] = useState(null);
 
   // 1. Check LocalStorage Cache Memory for Saved User Session on App Load
   useEffect(() => {
@@ -98,6 +102,41 @@ export default function App() {
     };
   }, [userSession?.uid, userSession?.customUserId]);
 
+  // 3. Global Live Backend Bot Status Polling (Syncs Home, Link & Earn, Header instantly!)
+  useEffect(() => {
+    const userId = userSession?.customUserId || userSession?.uid;
+    if (!userId) return;
+
+    const pollLiveBotStatus = async () => {
+      try {
+        const res = await fetch(`/api/bot-status/${userId}`);
+        const data = await res.json();
+        if (data.success) {
+          const currentStatus = data.status || (data.isConnected ? 'CONNECTED' : 'DISCONNECTED');
+          setLiveBotStatus(currentStatus);
+
+          if (data.pairingCode) {
+            setLivePairingCode(data.pairingCode);
+          }
+
+          // Keep userSession.isBotConnected in sync
+          setUserSession((prev) => (prev ? { ...prev, isBotConnected: data.isConnected } : null));
+
+          // Also update session state if active
+          if (session) {
+            setSession(prev => prev ? { ...prev, status: currentStatus, pairingCode: data.pairingCode || prev.pairingCode } : null);
+          }
+        }
+      } catch (err) {
+        // Quiet catch for network polling
+      }
+    };
+
+    pollLiveBotStatus();
+    const interval = setInterval(pollLiveBotStatus, 2000);
+    return () => clearInterval(interval);
+  }, [userSession?.customUserId, userSession?.uid]);
+
   // Fetch target channel list on load
   const fetchChannels = async () => {
     try {
@@ -114,26 +153,6 @@ export default function App() {
   useEffect(() => {
     fetchChannels();
   }, []);
-
-  // Poll active session for log feed & status
-  useEffect(() => {
-    if (!session?.id || session.status === 'COMPLETED') return;
-
-    const interval = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/session/${session.id}`);
-        const data = await res.json();
-        if (data.success && data.session) {
-          setSession(data.session);
-          setLogs(data.session.logs || []);
-        }
-      } catch (err) {
-        console.error('Session polling error:', err);
-      }
-    }, 800);
-
-    return () => clearInterval(interval);
-  }, [session?.id, session?.status]);
 
   // Handle Login & Save Session to Cache Memory
   const handleLoginSuccess = (sessionData) => {
@@ -199,24 +218,15 @@ export default function App() {
         };
         setSession(sessionObj);
         setLogs(sessionObj.logs);
+        setLivePairingCode(data.code);
+        setLiveBotStatus('AWAITING_PAIRING');
         setShowPairingModal(true);
       } else {
         alert(data.error || 'Failed to initiate CoinMitra pairing session.');
       }
     } catch (err) {
-      // Fallback mode
-      const mockSession = {
-        id: userId,
-        phoneNumber,
-        pairingCode: `${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
-        status: 'AWAITING_PAIRING',
-        logs: [
-          `[${new Date().toLocaleTimeString()}] Session initialized for ${phoneNumber}`,
-          `[${new Date().toLocaleTimeString()}] Generated 8-digit pairing code. Ready for WhatsApp input.`
-        ]
-      };
-      setSession(mockSession);
-      setLogs(mockSession.logs);
+      console.error('Pairing error:', err);
+      alert('Network error connecting to Baileys engine. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -224,31 +234,12 @@ export default function App() {
 
   // Confirm Handshake & Start Syncing
   const handleConfirmPairing = async () => {
-    if (!session?.id) return;
-    try {
-      const resConfirm = await fetch('/api/confirm-pairing', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId: session.id })
-      });
-      const dataConfirm = await resConfirm.json();
-
-      if (dataConfirm.success) {
-        setShowPairingModal(false);
-        await fetch('/api/sync-channels', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sessionId: session.id })
-        });
-      }
-    } catch (err) {
-      setShowPairingModal(false);
-      setSession((prev) => ({ ...prev, status: 'CONNECTED' }));
-      setLogs((prev) => [
-        ...prev,
-        `[${new Date().toLocaleTimeString()}] Handshake confirmed! Bot status: CONNECTED`
-      ]);
-    }
+    setShowPairingModal(false);
+    setLiveBotStatus('CONNECTING');
+    setLogs((prev) => [
+      ...prev,
+      `[${new Date().toLocaleTimeString()}] Pairing code entered in WhatsApp. Waiting for connection handshake...`
+    ]);
   };
 
   const handleAddChannel = async (channelData) => {
@@ -291,7 +282,7 @@ export default function App() {
         activeTab={activeTab}
         setActiveTab={handleTabChange}
         coinBalance={userSession?.coinBalance || 0}
-        botStatus={session?.status || (userSession?.isBotConnected ? 'CONNECTED' : 'DISCONNECTED')}
+        botStatus={liveBotStatus}
         userSession={userSession}
         onOpenAdmin={() => setShowAdminPanel(true)}
         onLogout={handleLogout}
@@ -311,6 +302,7 @@ export default function App() {
               <HomeDashboard
                 userSession={userSession}
                 onNavigate={handleTabChange}
+                botStatus={liveBotStatus}
               />
             )}
 
@@ -321,6 +313,8 @@ export default function App() {
                 onConnect={handleConnect}
                 onConfirmPairing={handleConfirmPairing}
                 loading={loading}
+                botStatus={liveBotStatus}
+                livePairingCode={livePairingCode}
               />
             )}
 

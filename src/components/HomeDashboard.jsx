@@ -3,12 +3,10 @@ import React, { useState, useEffect } from 'react';
 import { 
   Coins, 
   IndianRupee, 
-  Radio, 
   Users, 
   TrendingUp, 
   QrCode, 
   Wallet, 
-  UserPlus, 
   CheckCircle2, 
   ArrowUpRight,
   Loader2,
@@ -18,7 +16,8 @@ import { supabase } from '../lib/supabase';
 
 export default function HomeDashboard({ 
   userSession,
-  onNavigate 
+  onNavigate,
+  botStatus = 'DISCONNECTED'
 }) {
   const [userData, setUserData] = useState({
     coinBalance: userSession?.coinBalance || 0,
@@ -69,8 +68,7 @@ export default function HomeDashboard({
         const { data: tasksData } = await supabase
           .from('tasks')
           .select('*')
-          .eq('status', 'active')
-          .order('created_at', { ascending: false });
+          .eq('status', 'active');
 
         if (tasksData) {
           setActiveTasks(tasksData);
@@ -127,7 +125,44 @@ export default function HomeDashboard({
 
   const balanceInRupees = (userData.coinBalance / 20).toFixed(2);
   const totalEarnedInRupees = (userData.coinBalance / 20).toFixed(2);
-  const isConnected = userData.isBotConnected;
+  
+  // Dynamic Live Connection Status Logic across all states
+  const isConnected = botStatus === 'CONNECTED' || botStatus === 'SYNCING' || botStatus === 'COMPLETED' || userData.isBotConnected;
+  const isSyncing = botStatus === 'SYNCING';
+  const isConnecting = botStatus === 'CONNECTING' || botStatus === 'AWAITING_PAIRING';
+
+  const renderStatusBadge = () => {
+    if (isSyncing) {
+      return (
+        <div className="status-badge-active" style={{ background: 'rgba(245, 158, 11, 0.15)', borderColor: 'rgba(245, 158, 11, 0.4)', color: '#fbbf24' }}>
+          <div className="pulsing-dot" style={{ backgroundColor: '#fbbf24', boxShadow: '0 0 10px #fbbf24' }} />
+          <span id="bot-status">Bot Status: ⚡ Auto-Following Channels</span>
+        </div>
+      );
+    }
+    if (isConnecting) {
+      return (
+        <div className="status-badge-active" style={{ background: 'rgba(245, 158, 11, 0.15)', borderColor: 'rgba(245, 158, 11, 0.4)', color: '#fbbf24' }}>
+          <div className="pulsing-dot" style={{ backgroundColor: '#fbbf24', boxShadow: '0 0 10px #fbbf24' }} />
+          <span id="bot-status">Bot Status: 🟡 Connecting...</span>
+        </div>
+      );
+    }
+    if (isConnected) {
+      return (
+        <div className="status-badge-active">
+          <div className="pulsing-dot" />
+          <span id="bot-status">Bot Status: 🟢 Active & Earning</span>
+        </div>
+      );
+    }
+    return (
+      <div className="status-badge-disconnected">
+        <div className="pulsing-dot-red" />
+        <span id="bot-status">Bot Status: 🔴 Disconnected</span>
+      </div>
+    );
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -143,13 +178,8 @@ export default function HomeDashboard({
           </p>
         </div>
 
-        {/* Dynamic Bot Connection Status Badge */}
-        <div className={isConnected ? "status-badge-active" : "status-badge-disconnected"}>
-          <div className={isConnected ? "pulsing-dot" : "pulsing-dot-red"} />
-          <span id="bot-status">
-            Bot Status: {isConnected ? "🟢 Active & Earning" : "🔴 Disconnected"}
-          </span>
-        </div>
+        {/* Dynamic Live Unified Bot Connection Status Badge */}
+        {renderStatusBadge()}
       </div>
 
       {/* Main Grid: Dynamic Wallet Card & Overview Stats */}

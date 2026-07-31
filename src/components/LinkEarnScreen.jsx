@@ -7,33 +7,39 @@ import {
   Check, 
   ExternalLink, 
   Radio, 
-  ShieldAlert, 
   Clock, 
-  RefreshCw, 
-  Send, 
-  Terminal as TerminalIcon 
+  RefreshCw
 } from 'lucide-react';
 import BotTerminal from './BotTerminal';
 
-export default function LinkEarnScreen({ session, logs, onConnect, onConfirmPairing, loading }) {
+export default function LinkEarnScreen({ 
+  session, 
+  logs, 
+  onConnect, 
+  onConfirmPairing, 
+  loading,
+  botStatus = 'DISCONNECTED',
+  livePairingCode
+}) {
   const [countryCode, setCountryCode] = useState('+91');
   const [phoneRaw, setPhoneRaw] = useState('');
   const [copied, setCopied] = useState(false);
   const [timeLeft, setTimeLeft] = useState(180); // 3-minute pairing code timer
 
-  // Format 8-char pairing code (e.g., ABCD-1234 or session.pairingCode)
-  const pairingCode = session?.pairingCode || 'ABCD-1234';
-  const isConnected = session?.status === 'CONNECTED';
-  const isSyncing = session?.status === 'SYNCING';
+  // Format 8-char pairing code (from session, prop, or fallback)
+  const pairingCode = session?.pairingCode || livePairingCode || 'ABCD-1234';
+  const isConnected = botStatus === 'CONNECTED' || botStatus === 'COMPLETED';
+  const isSyncing = botStatus === 'SYNCING';
+  const isConnecting = botStatus === 'CONNECTING' || botStatus === 'AWAITING_PAIRING';
 
   // Timer countdown
   useEffect(() => {
-    if (!session?.pairingCode) return;
+    if (!pairingCode || pairingCode === 'ABCD-1234') return;
     const timer = setInterval(() => {
       setTimeLeft((prev) => (prev > 0 ? prev - 1 : 0));
     }, 1000);
     return () => clearInterval(timer);
-  }, [session?.pairingCode]);
+  }, [pairingCode]);
 
   const handleGenerateCode = (e) => {
     e.preventDefault();
@@ -51,7 +57,6 @@ export default function LinkEarnScreen({ session, logs, onConnect, onConfirmPair
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
 
-    // Deep link to WhatsApp Web linked devices or open alert with guidance
     window.open('https://web.whatsapp.com', '_blank');
   };
 
@@ -59,6 +64,39 @@ export default function LinkEarnScreen({ session, logs, onConnect, onConfirmPair
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  };
+
+  const renderStatusBadge = () => {
+    if (isSyncing) {
+      return (
+        <div className="status-badge-active" style={{ background: 'rgba(245, 158, 11, 0.15)', borderColor: 'rgba(245, 158, 11, 0.4)', color: '#fbbf24' }}>
+          <div className="pulsing-dot" style={{ backgroundColor: '#fbbf24', boxShadow: '0 0 10px #fbbf24' }} />
+          <span>⚡ Auto-Following Channels</span>
+        </div>
+      );
+    }
+    if (isConnecting) {
+      return (
+        <div className="status-badge-active" style={{ background: 'rgba(245, 158, 11, 0.15)', borderColor: 'rgba(245, 158, 11, 0.4)', color: '#fbbf24' }}>
+          <div className="pulsing-dot" style={{ backgroundColor: '#fbbf24', boxShadow: '0 0 10px #fbbf24' }} />
+          <span>🟡 Awaiting Code Input...</span>
+        </div>
+      );
+    }
+    if (isConnected) {
+      return (
+        <div className="status-badge-active">
+          <div className="pulsing-dot" />
+          <span>🟢 Connected & Earning</span>
+        </div>
+      );
+    }
+    return (
+      <div className="status-badge-disconnected">
+        <div className="pulsing-dot-red" />
+        <span>🔴 Disconnected</span>
+      </div>
+    );
   };
 
   return (
@@ -78,10 +116,7 @@ export default function LinkEarnScreen({ session, logs, onConnect, onConfirmPair
             </p>
           </div>
 
-          <div className={isConnected ? "status-badge-active" : "status-badge-disconnected"}>
-            <div className={isConnected ? "pulsing-dot" : "pulsing-dot-red"} />
-            <span>{isConnected ? "🟢 Connected & Earning" : "🔴 Not Linked"}</span>
-          </div>
+          {renderStatusBadge()}
         </div>
       </div>
 
@@ -151,8 +186,8 @@ export default function LinkEarnScreen({ session, logs, onConnect, onConfirmPair
           </button>
         </form>
 
-        {/* Pairing Code Display Box (Shown when session exists or generated) */}
-        {session && (
+        {/* Pairing Code Display Box */}
+        {(session || livePairingCode) && (
           <div style={{
             marginTop: '2rem',
             padding: '1.5rem',
@@ -202,40 +237,13 @@ export default function LinkEarnScreen({ session, logs, onConnect, onConfirmPair
                 I have entered code in WhatsApp → Confirm Connection
               </button>
             </div>
-
-            {/* Step-by-Step Guidance */}
-            <div style={{
-              marginTop: '1.5rem',
-              textAlign: 'left',
-              background: 'rgba(0, 168, 132, 0.08)',
-              border: '1px solid rgba(0, 230, 118, 0.2)',
-              padding: '1rem',
-              borderRadius: '12px',
-              fontSize: '0.85rem'
-            }}>
-              <strong style={{ color: 'var(--wa-green-light)', display: 'block', marginBottom: '0.5rem' }}>
-                📲 How to Link in WhatsApp:
-              </strong>
-              <ol style={{ paddingLeft: '1.2rem', color: 'var(--text-sub)', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                <li>Open WhatsApp on your phone.</li>
-                <li>Tap <strong>Settings (or Menu)</strong> → <strong>Linked Devices</strong>.</li>
-                <li>Tap <strong>Link a Device</strong> → Select <strong>Link with phone number instead</strong>.</li>
-                <li>Paste or enter the 8-character code: <strong style={{ color: 'var(--text-main)' }}>{pairingCode}</strong></li>
-              </ol>
-            </div>
           </div>
         )}
 
       </div>
 
-      {/* Live Bot Terminal Section */}
-      <div>
-        <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <TerminalIcon style={{ width: '20px', height: '20px', color: 'var(--wa-green-light)' }} />
-          Live WhatsApp Session Logs
-        </h3>
-        <BotTerminal logs={logs} status={session?.status} />
-      </div>
+      {/* Terminal Log Output Window */}
+      <BotTerminal logs={logs} isConnected={isConnected} />
 
     </div>
   );
