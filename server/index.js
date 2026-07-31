@@ -254,7 +254,7 @@ const getUserTaskMode = async (userId) => {
     const cleanPhone = userId.replace(/\D/g, '');
     let query = supabase.from('users').select('task_mode');
     if (cleanPhone && cleanPhone.length >= 10) {
-      query = query.or(`custom_user_id.eq.${userId},uid.eq.${userId},phone_number.ilike.%${cleanPhone.slice(-10)}%`);
+      query = query.or(`custom_user_id.eq.${userId},uid.eq.${userId},phone.ilike.%${cleanPhone.slice(-10)}%`);
     } else {
       query = query.or(`custom_user_id.eq.${userId},uid.eq.${userId}`);
     }
@@ -365,13 +365,15 @@ async function initUserSocket(userId, cleanPhone, isNewPairing = false) {
       const existing = activeSessionsMap.get(sessionId);
       if (existing && existing.sock) {
         existing.sock.ev.removeAllListeners();
-        if (typeof existing.sock.end === 'function') {
+        if (existing.sock.ws && typeof existing.sock.ws.close === 'function') {
+          existing.sock.ws.close();
+        } else if (typeof existing.sock.end === 'function') {
           existing.sock.end(new Error('Resetting socket for fresh pairing'));
         }
       }
     } catch (e) {}
     activeSessionsMap.delete(sessionId);
-    await new Promise(r => setTimeout(r, 300));
+    await new Promise(r => setTimeout(r, 500));
   }
 
   // Clean old corrupted data ONLY if it's a fresh pairing request for this number
