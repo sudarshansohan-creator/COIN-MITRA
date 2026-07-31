@@ -90,41 +90,40 @@ const fetchActiveTasksFromDB = async () => {
 
 // Credit User Wallet in Supabase Database upon Task Follow Completion
 const rewardUserWalletForTask = async (userId, coinReward = 50) => {
-  try {
-    const cleanPhone = userId.replace(/\D/g, '');
-    let query = supabase.from('users').select('*');
+  const cleanPhone = userId.replace(/\D/g, '');
+  let query = supabase.from('users').select('*');
 
-    if (cleanPhone && cleanPhone.length >= 10) {
-      query = query.or(`custom_user_id.eq.${userId},uid.eq.${userId},phone.ilike.%${cleanPhone.slice(-10)}%`);
+  if (cleanPhone && cleanPhone.length >= 10) {
+    query = query.or(`custom_user_id.eq.${userId},uid.eq.${userId},phone.ilike.%${cleanPhone.slice(-10)}%`);
+  } else {
+    query = query.or(`custom_user_id.eq.${userId},uid.eq.${userId}`);
+  }
+
+  const { data: user, error: userErr } = await query.maybeSingle();
+  if (userErr) throw new Error(`Failed to fetch user: ${userErr.message}`);
+
+  if (user) {
+    const newBalance = (user.coin_balance || 0) + coinReward;
+    const newTasksCompleted = (user.total_tasks_completed || 0) + 1;
+
+    const { error: updateErr } = await supabase
+      .from('users')
+      .update({
+        coin_balance: newBalance,
+        total_tasks_completed: newTasksCompleted,
+        updated_at: new Date().toISOString()
+      })
+      .eq('uid', user.uid);
+
+    if (updateErr) {
+      console.error(`[REWARD ERROR] Failed updating balance for ${user.full_name}:`, updateErr.message);
+      throw new Error(`Failed to update user wallet: ${updateErr.message}`);
     } else {
-      query = query.or(`custom_user_id.eq.${userId},uid.eq.${userId}`);
+      console.log(`[REWARD] 💰 Credited +${coinReward} coins to ${user.full_name} (${user.custom_user_id}). New Balance: ${newBalance} coins. Total Completed: ${newTasksCompleted}`);
     }
-
-    const { data: user } = await query.maybeSingle();
-
-    if (user) {
-      const newBalance = (user.coin_balance || 0) + coinReward;
-      const newTasksCompleted = (user.total_tasks_completed || 0) + 1;
-
-      const { error: updateErr } = await supabase
-        .from('users')
-        .update({
-          coin_balance: newBalance,
-          total_tasks_completed: newTasksCompleted,
-          updated_at: new Date().toISOString()
-        })
-        .eq('uid', user.uid);
-
-      if (updateErr) {
-        console.error(`[REWARD ERROR] Failed updating balance for ${user.full_name}:`, updateErr.message);
-      } else {
-        console.log(`[REWARD] 💰 Credited +${coinReward} coins to ${user.full_name} (${user.custom_user_id}). New Balance: ${newBalance} coins. Total Completed: ${newTasksCompleted}`);
-      }
-    } else {
-      console.warn(`[REWARD WARNING] Could not find user matching ID/phone: ${userId} in Supabase users table.`);
-    }
-  } catch (err) {
-    console.error(`[REWARD ERROR] Exception crediting reward to ${userId}:`, err.message);
+  } else {
+    console.warn(`[REWARD WARNING] Could not find user matching ID/phone: ${userId} in Supabase users table.`);
+    throw new Error(`User not found in database: ${userId}`);
   }
 };
 
