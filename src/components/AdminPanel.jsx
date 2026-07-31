@@ -292,37 +292,50 @@ export default function AdminPanel({ isOpen, onClose }) {
     }
   };
 
-  // Add New Task to Supabase Table
+  // Add New Task to Supabase Table with Column Fallback
   const handleAddTaskSubmit = async (e) => {
     e.preventDefault();
     setSuccessMsg('');
-    if (!taskForm.channel_name || !taskForm.channel_link) {
-      alert('Please fill in both Channel Name and Channel Link.');
+    if (!taskForm.channel_link) {
+      alert('Please enter WhatsApp Channel Link.');
       return;
     }
 
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      const taskPayload = {
+        channel_name: taskForm.channel_name.trim() || 'WhatsApp Partner Channel',
+        channel_link: taskForm.channel_link.trim(),
+        target_count: Number(taskForm.target_count) || 1000,
+        coin_reward: Number(taskForm.coin_reward) || 50,
+        status: 'active'
+      };
+
+      let { data, error } = await supabase
         .from('tasks')
-        .insert([
-          {
-            channel_name: taskForm.channel_name.trim(),
-            channel_link: taskForm.channel_link.trim(),
-            target_count: Number(taskForm.target_count) || 1000,
-            coin_reward: Number(taskForm.coin_reward) || 50,
-            status: 'active'
-          }
-        ])
+        .insert([taskPayload])
         .select()
         .single();
 
+      // If channel_name column is missing in older Supabase schema, retry without channel_name
+      if (error && (error.message.includes('channel_name') || error.message.includes('schema cache'))) {
+        console.warn('Retrying insert without channel_name column...');
+        delete taskPayload.channel_name;
+        const retryRes = await supabase
+          .from('tasks')
+          .insert([taskPayload])
+          .select()
+          .single();
+        data = retryRes.data;
+        error = retryRes.error;
+      }
+
       if (error) {
         console.error('Supabase Task Insert Error:', error);
-        alert(`❌ Supabase Database Error: ${error.message}\n\nPlease make sure the "tasks" table is created in your Supabase SQL Editor.`);
+        alert(`❌ Supabase Database Error: ${error.message}\n\nPlease run the SQL snippet in your Supabase SQL Editor:\nALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS channel_name TEXT DEFAULT 'WhatsApp Channel';`);
       } else if (data) {
         setTasks(prev => [data, ...prev]);
-        setSuccessMsg(`✅ Channel "${taskForm.channel_name}" added successfully to Supabase!`);
+        setSuccessMsg(`✅ Channel Task added successfully to Supabase!`);
         setTaskForm({ channel_name: '', channel_link: '', target_count: 1000, coin_reward: 50 });
         setTimeout(() => { setSuccessMsg(''); setActiveTab('tasks'); }, 1500);
       }
