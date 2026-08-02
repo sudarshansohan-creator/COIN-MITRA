@@ -298,8 +298,8 @@ export default function App() {
         onLogout={handleLogout}
       />
 
-      {/* Main Screen Container */}
-      <main style={{ maxWidth: '1200px', width: '100%', margin: '0 auto', padding: '1.5rem 1rem 3rem', flex: 1 }}>
+      {/* Main Content Area */}
+      <main style={{ maxWidth: '1400px', width: '100%', margin: '0 auto', padding: 'clamp(1rem, 3vw, 2rem)', flex: 1 }}>
         
         {/* Unauthenticated View Guard */}
         {(!userSession || !userSession.isLoggedIn || activeTab === 'auth') ? (

@@ -49,7 +49,7 @@ export default function Navbar({
         padding: '0.6rem 1rem'
       }}>
         <div style={{
-          maxWidth: '1200px',
+          maxWidth: '1400px',
           margin: '0 auto',
           display: 'flex',
           alignItems: 'center',
