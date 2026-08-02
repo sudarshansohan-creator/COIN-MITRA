@@ -719,7 +719,7 @@ export default function AdminPanel({ isOpen, onClose }) {
                     <Coins size={18} /> Coin Exchange & Conversion Rate
                   </h4>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
                     <div>
                       <label style={{ fontSize: '0.8rem', color: 'var(--text-sub)', marginBottom: '0.3rem', display: 'block' }}>
                         Coins per ₹1 INR (Exchange Rate)
@@ -833,7 +833,7 @@ export default function AdminPanel({ isOpen, onClose }) {
                     <Trophy size={18} /> Daily Leaderboard Rewards
                   </h4>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem' }}>
                     <div>
                       <label style={{ fontSize: '0.8rem', color: 'var(--text-sub)', marginBottom: '0.3rem', display: 'block' }}>
                         Rank #1 Bonus
@@ -1389,9 +1389,9 @@ export default function AdminPanel({ isOpen, onClose }) {
               </div>
             )}
             {activeTab === 'support' && (
-              <div style={{ display: 'flex', gap: '1rem', height: '600px', background: '#090e11', borderRadius: '12px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', height: '600px', maxHeight: '70vh', background: '#090e11', borderRadius: '12px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
                 {/* Users List Sidebar */}
-                <div style={{ width: '300px', borderRight: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ flex: '1 1 250px', maxWidth: '100%', borderRight: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column' }}>
                   <div style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)', fontWeight: 700, color: 'var(--text-main)' }}>
                     Active Chats
                   </div>
@@ -1430,7 +1430,7 @@ export default function AdminPanel({ isOpen, onClose }) {
                 </div>
 
                 {/* Chat Area */}
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                <div style={{ flex: '2 1 350px', display: 'flex', flexDirection: 'column', height: '100%' }}>
                   {activeSupportUser ? (
                     <>
                       <div style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)', fontWeight: 700, color: 'var(--wa-green-light)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
