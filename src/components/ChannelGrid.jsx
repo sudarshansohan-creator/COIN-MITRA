@@ -78,7 +78,7 @@ export default function ChannelGrid({
 
     setUpdatingMode(true);
     try {
-      const res = await fetch('/api/update-mode', {
+      const res = await fetch('https://coin-mitra.onrender.com/api/update-mode', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, mode: newMode })
@@ -114,7 +114,7 @@ export default function ChannelGrid({
     setVerifyingTaskId(channelId);
 
     try {
-      const res = await fetch('/api/verify-task', {
+      const res = await fetch('https://coin-mitra.onrender.com/api/verify-task', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

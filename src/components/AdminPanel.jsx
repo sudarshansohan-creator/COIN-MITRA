@@ -229,7 +229,7 @@ export default function AdminPanel({ isOpen, onClose }) {
     setRewarding(true);
     
     try {
-      const response = await fetch('/api/admin/manual-reward', {
+      const response = await fetch('https://coin-mitra.onrender.com/api/admin/manual-reward', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(manualRewardForm)

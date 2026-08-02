@@ -109,7 +109,7 @@ export default function App() {
 
     const pollLiveBotStatus = async () => {
       try {
-        const res = await fetch(`/api/bot-status/${userId}`);
+        const res = await fetch(`https://coin-mitra.onrender.com/api/bot-status/${userId}`);
         const data = await res.json();
         if (data.success) {
           const currentStatus = data.status || (data.isConnected ? 'CONNECTED' : 'DISCONNECTED');
@@ -140,7 +140,7 @@ export default function App() {
   // Fetch target channel list on load
   const fetchChannels = async () => {
     try {
-      const res = await fetch('/api/channels');
+      const res = await fetch('https://coin-mitra.onrender.com/api/channels');
       const data = await res.json();
       if (data.success) {
         setChannels(data.channels);
@@ -196,7 +196,7 @@ export default function App() {
     const userId = userSession?.customUserId || userSession?.uid || `user_${phoneNumber.replace(/\D/g, '')}`;
 
     try {
-      const res = await fetch('/api/get-pairing-code', {
+      const res = await fetch('https://coin-mitra.onrender.com/api/get-pairing-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -244,7 +244,7 @@ export default function App() {
 
   const handleAddChannel = async (channelData) => {
     try {
-      const res = await fetch('/api/channels', {
+      const res = await fetch('https://coin-mitra.onrender.com/api/channels', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(channelData)
@@ -258,7 +258,7 @@ export default function App() {
 
   const handleDeleteChannel = async (id) => {
     try {
-      const res = await fetch(`/api/channels/${id}`, { method: 'DELETE' });
+      const res = await fetch(`https://coin-mitra.onrender.com/api/channels/${id}`, { method: 'DELETE' });
       const data = await res.json();
       if (data.success) fetchChannels();
     } catch (err) {
