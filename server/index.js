@@ -1264,7 +1264,7 @@ app.get('/api/leaderboard/daily', async (req, res) => {
 
     // Aggregate by user_id
     const userEarnings = {};
-    for (const tx of txData) {
+    for (const tx of (txData || [])) {
       if (!userEarnings[tx.user_id]) userEarnings[tx.user_id] = 0;
       userEarnings[tx.user_id] += tx.amount;
     }
@@ -1277,8 +1277,14 @@ app.get('/api/leaderboard/daily', async (req, res) => {
     const leaderboard = [];
     for (let i = 0; i < sorted.length; i++) {
       const [user_id, amount] = sorted[i];
-      // Try to fetch user name
-      const { data: userData } = await supabase.from('users').select('full_name, phone_number').or(`uid.eq.${user_id},custom_user_id.eq.${user_id}`).maybeSingle();
+      // Try to fetch user name safely
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user_id);
+      let query = supabase.from('users').select('full_name, phone_number');
+      
+      let orConditions = [`custom_user_id.eq.${user_id}`];
+      if (isUUID) orConditions.push(`uid.eq.${user_id}`);
+      
+      const { data: userData } = await query.or(orConditions.join(',')).maybeSingle();
       
       let name = userData?.full_name || 'Anonymous User';
       if (name === 'Anonymous User' && userData?.phone_number) {
