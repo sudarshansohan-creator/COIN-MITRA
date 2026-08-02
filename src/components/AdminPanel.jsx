@@ -382,14 +382,34 @@ export default function AdminPanel({ isOpen, onClose }) {
 
       if (error) {
         alert('Failed to update pricing settings: ' + error.message);
-      } else {
-        setSuccessMsg('✅ Platform Pricing & Exchange Rates updated successfully!');
-        setTimeout(() => setSuccessMsg(''), 3000);
-      }
+      if (error) throw error;
+      setSuccessMsg('Pricing settings updated successfully.');
+      setTimeout(() => setSuccessMsg(''), 3000);
     } catch (err) {
-      alert('Error updating platform settings.');
+      console.error('Error saving pricing:', err);
+      alert('Failed to save settings.');
     } finally {
       setSavingPricing(false);
+    }
+  };
+
+  const handleResetLeaderboard = async () => {
+    if (!window.confirm("Are you sure you want to reset today's leaderboard? This will set the leaderboard starting time to NOW.")) return;
+    try {
+      const res = await fetch('https://coin-mitra.onrender.com/api/admin/reset-leaderboard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ admin_id: adminUser?.admin_id })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert("Success! Leaderboard has been reset.");
+      } else {
+        alert("Failed to reset leaderboard: " + data.error);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error connecting to server.");
     }
   };
 
@@ -887,13 +907,38 @@ export default function AdminPanel({ isOpen, onClose }) {
                       <Trophy size={16} /> Distribute Today's Rewards Now
                     </button>
                   </div>
+
+                  <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                    <button
+                      type="button"
+                      onClick={handleResetLeaderboard}
+                      style={{
+                        background: 'rgba(239, 68, 68, 0.1)',
+                        border: '1px solid rgba(239, 68, 68, 0.4)',
+                        color: '#f87171',
+                        padding: '0.65rem 1rem',
+                        borderRadius: '8px',
+                        fontSize: '0.85rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem'
+                      }}
+                    >
+                      <RefreshCw size={16} /> Force Reset Today's Leaderboard
+                    </button>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
+                      Clicking this will instantly clear today's leaderboard by setting a new start time from right now. Users' coin balances will NOT be affected.
+                    </p>
+                  </div>
                 </div>
 
                 <button
                   type="submit"
                   disabled={savingPricing}
                   className="btn-gold"
-                  style={{ padding: '0.85rem', fontSize: '0.95rem', justifyContent: 'center' }}
+                  style={{ padding: '0.9rem', fontSize: '1rem', justifyContent: 'center', marginTop: '1rem' }}
                 >
                   {savingPricing ? (
                     <>

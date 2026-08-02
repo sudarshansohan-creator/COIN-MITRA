@@ -1247,6 +1247,31 @@ app.post('/api/admin/reject-manual-request', async (req, res) => {
 // LEADERBOARD APIs
 // ==========================================
 
+// Admin API: Reset Daily Leaderboard
+app.post('/api/admin/reset-leaderboard', async (req, res) => {
+  try {
+    const { admin_id } = req.body;
+    if (!admin_id) return res.status(403).json({ success: false, error: 'Unauthorized.' });
+
+    // Verify Admin
+    const { data: adminUser } = await supabase.from('admin_users').select('admin_id').eq('admin_id', admin_id).maybeSingle();
+    if (!adminUser) return res.status(403).json({ success: false, error: 'Unauthorized. Invalid Admin ID.' });
+
+    // Update platform_settings
+    const { error } = await supabase
+      .from('platform_settings')
+      .update({ leaderboard_last_reset: new Date().toISOString() })
+      .eq('id', 1);
+
+    if (error) throw error;
+
+    res.json({ success: true, message: 'Leaderboard reset successfully!' });
+  } catch (error) {
+    console.error('Reset leaderboard error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // GET Daily Leaderboard
 app.get('/api/leaderboard/daily', async (req, res) => {
   try {
@@ -1261,12 +1286,23 @@ app.get('/api/leaderboard/daily', async (req, res) => {
     const startOfDay = new Date(`${todayStr}T00:00:00+05:30`).toISOString();
     const endOfDay = new Date(`${todayStr}T23:59:59.999+05:30`).toISOString();
     
+    // Fetch leaderboard_last_reset from platform_settings
+    let actualStartOfDay = startOfDay;
+    const { data: settings } = await supabase.from('platform_settings').select('leaderboard_last_reset').eq('id', 1).maybeSingle();
+    if (settings && settings.leaderboard_last_reset) {
+      const resetTime = new Date(settings.leaderboard_last_reset).getTime();
+      const startOfDayTime = new Date(startOfDay).getTime();
+      if (resetTime > startOfDayTime) {
+        actualStartOfDay = new Date(resetTime).toISOString();
+      }
+    }
+
     // Fetch today's transactions for task_reward and referral_bonus
     const { data: txData, error } = await supabase
       .from('wallet_transactions')
       .select('user_id, amount')
       .in('transaction_type', ['task_reward', 'referral_bonus'])
-      .gte('created_at', startOfDay) // আপডেট করা টাইম
+      .gte('created_at', actualStartOfDay) // আপডেট করা টাইম বা রিসেট টাইম
       .lte('created_at', endOfDay);  // আপডেট করা টাইম
 
     if (error) throw error;
