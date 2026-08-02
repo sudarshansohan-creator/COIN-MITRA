@@ -21,10 +21,14 @@ export default function ChannelGrid({
   subscriptions = {}, 
   isSyncing, 
   userSession,
-  onRefreshProfile
+  onRefreshProfile,
+  onNavigate
 }) {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // All Tasks Done Modal State
+  const [showAllDonePopup, setShowAllDonePopup] = useState(false);
   
   // Mode State: 'auto' | 'manual'
   const [taskMode, setTaskMode] = useState('manual');
@@ -93,6 +97,24 @@ export default function ChannelGrid({
 
     fetchModeAndCompletions();
   }, [userId]);
+
+  // Check if all tasks are completed
+  useEffect(() => {
+    if (channels.length > 0) {
+      const allDone = channels.every(c => completedTaskMap[c.task_id || c.id] || completedTaskMap[c.channel_link || c.link]);
+      if (allDone) {
+        const dismissed = sessionStorage.getItem('allTasksDoneDismissed');
+        if (!dismissed) {
+          setShowAllDonePopup(true);
+        }
+      }
+    }
+  }, [channels, completedTaskMap]);
+
+  const handleDismissAllDonePopup = () => {
+    sessionStorage.setItem('allTasksDoneDismissed', 'true');
+    setShowAllDonePopup(false);
+  };
 
   // 2. Handle Task Mode Switch
   const handleModeSwitch = async (newMode) => {
@@ -584,6 +606,56 @@ export default function ChannelGrid({
           );
         })}
       </div>
+
+      {/* All Tasks Completed Modal */}
+      {showAllDonePopup && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ textAlign: 'center', maxWidth: '400px' }}>
+            <div style={{
+              width: '60px',
+              height: '60px',
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(245, 158, 11, 0.05))',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 1rem',
+              color: '#f59e0b'
+            }}>
+              <TrendingUp size={30} />
+            </div>
+            
+            <h3 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#ffffff', marginBottom: '0.5rem' }}>
+              All Tasks Completed! 🎉
+            </h3>
+            
+            <p style={{ color: 'var(--text-sub)', fontSize: '0.9rem', marginBottom: '1.5rem', lineHeight: 1.5 }}>
+              You have completed all available tasks for now. Want to earn more Coins while waiting for new tasks? <strong style={{ color: '#fbbf24' }}>Earn +200 Coins for every friend you invite!</strong>
+            </p>
+            
+            <div style={{ display: 'flex', gap: '0.75rem', flexDirection: 'column' }}>
+              <button
+                onClick={() => {
+                  handleDismissAllDonePopup();
+                  if (onNavigate) onNavigate('invite');
+                }}
+                className="btn-gold"
+                style={{ width: '100%', padding: '0.85rem' }}
+              >
+                <TrendingUp size={18} /> Earn More by Inviting Friends
+              </button>
+              
+              <button
+                onClick={handleDismissAllDonePopup}
+                className="btn-secondary"
+                style={{ width: '100%', padding: '0.85rem' }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
