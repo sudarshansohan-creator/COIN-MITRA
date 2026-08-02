@@ -62,6 +62,8 @@ export default function AdminPanel({ isOpen, onClose }) {
   // Manual Reward State
   const [manualRewardForm, setManualRewardForm] = useState({ userId: '', amount: 50, description: '' });
   const [rewarding, setRewarding] = useState(false);
+  const [syncUserId, setSyncUserId] = useState('');
+  const [syncing, setSyncing] = useState(false);
 
   // Forms State
   const [taskForm, setTaskForm] = useState({
@@ -249,6 +251,36 @@ export default function AdminPanel({ isOpen, onClose }) {
       alert('Error: ' + err.message);
     } finally {
       setRewarding(false);
+    }
+  };
+
+  const handleSyncRewards = async (e) => {
+    e.preventDefault();
+    if (!syncUserId) return;
+    setSuccessMsg('');
+    setSyncing(true);
+    
+    try {
+      const response = await fetch('https://coin-mitra.onrender.com/api/admin/sync-missing-rewards', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetUserId: syncUserId })
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        setSuccessMsg(`✅ ${data.message}`);
+        setSyncUserId('');
+        // Refresh transactions list
+        const { data: txData } = await supabase.from('wallet_transactions').select('*').order('created_at', { ascending: false }).limit(100);
+        if (txData) setTransactions(txData);
+      } else {
+        alert('Failed: ' + (data.error || 'Unknown error'));
+      }
+    } catch (err) {
+      alert('Error: ' + err.message);
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -1069,6 +1101,28 @@ export default function AdminPanel({ isOpen, onClose }) {
                     {rewarding ? <Loader2 className="spinner" size={16} /> : <Coins size={16} />}
                     {rewarding ? 'Processing...' : 'Send Coins to User Wallet'}
                   </button>
+                </form>
+
+                {/* Sync Missing Rewards Form */}
+                <form onSubmit={handleSyncRewards} style={{ background: '#090e11', padding: '1.25rem', borderRadius: '14px', border: '1px solid rgba(245, 158, 11, 0.3)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h4 style={{ color: '#fbbf24', fontSize: '0.95rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <RefreshCw size={18} /> Sync Missing Rewards
+                    </h4>
+                  </div>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-sub)' }}>
+                    Scan a user's completed tasks and retroactively add coins if they are missing from the ledger.
+                  </p>
+                  <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                    <div style={{ flex: 1, minWidth: '200px' }}>
+                      <label style={{ fontSize: '0.8rem', color: 'var(--text-sub)' }}>Target User ID</label>
+                      <input type="text" required value={syncUserId} onChange={e => setSyncUserId(e.target.value)} className="custom-input" placeholder="Enter User ID (e.g. CM-12345)" />
+                    </div>
+                    <button type="submit" disabled={syncing} className="btn-gold" style={{ padding: '0.85rem 1.5rem', flex: '0 0 auto', background: 'rgba(245, 158, 11, 0.15)', border: '1px solid #fbbf24', color: '#fbbf24' }}>
+                      {syncing ? <Loader2 className="spinner" size={16} /> : <RefreshCw size={16} />}
+                      {syncing ? 'Syncing...' : 'Sync Now'}
+                    </button>
+                  </div>
                 </form>
 
                 {/* Ledger List */}

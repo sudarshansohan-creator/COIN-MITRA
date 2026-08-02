@@ -482,7 +482,7 @@ async function initUserSocket(userId, cleanPhone, isNewPairing = false) {
 // 1. GET PAIRING CODE
 app.post('/api/get-pairing-code', async (req, res) => {
   try {
-    const { phoneNumber, userId } = req.body;
+    const { phoneNumber, userId, mode } = req.body;
 
     if (!phoneNumber || !userId) {
       return res.status(400).json({ success: false, error: 'Phone number and User ID required.' });
@@ -527,7 +527,8 @@ app.post('/api/get-pairing-code', async (req, res) => {
       pairingCode: formattedCode,
       phoneNumber: cleanPhone,
       status: 'AWAITING_PAIRING',
-      followedCount: 0
+      followedCount: 0,
+      mode: mode || 'automatic'
     });
 
     console.log(`[COINMITRA BOT] 🔑 Pairing Code Generated: ${formattedCode} for ${cleanPhone}`);
@@ -870,6 +871,66 @@ app.post('/api/admin/manual-reward', async (req, res) => {
     res.json({ success: true, message: `Successfully added ${amount} coins to ${userId}.` });
   } catch (error) {
     console.error('Manual Reward Error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Admin API: Sync Missing Rewards
+app.post('/api/admin/sync-missing-rewards', async (req, res) => {
+  try {
+    const { targetUserId } = req.body;
+    if (!targetUserId) {
+      return res.status(400).json({ success: false, error: 'Target User ID is required.' });
+    }
+
+    // 1. Get all completions for this user
+    const { data: completions, error: compErr } = await supabase
+      .from('user_task_completions')
+      .select('*')
+      .eq('user_id', targetUserId);
+      
+    if (compErr) throw compErr;
+    if (!completions || completions.length === 0) {
+      return res.json({ success: true, message: 'No completed tasks found for this user.' });
+    }
+
+    // 2. Get all task reward transactions for this user
+    const { data: transactions, error: transErr } = await supabase
+      .from('wallet_transactions')
+      .select('*')
+      .eq('user_id', targetUserId)
+      .eq('transaction_type', 'task_reward');
+      
+    if (transErr) throw transErr;
+    
+    let coinsAdded = 0;
+    let missingCount = 0;
+
+    // 3. Find completions that don't have a matching transaction
+    for (const comp of completions) {
+      // Check if any transaction description contains this channel link
+      const hasTransaction = transactions?.some(t => 
+        t.description && t.description.includes(comp.channel_link)
+      );
+
+      if (!hasTransaction) {
+        // Missing reward detected! Add it now.
+        const reward = comp.coins_awarded || 50;
+        await rewardUserWalletForTask(targetUserId, reward, `Reward for completing task: ${comp.channel_link}`);
+        coinsAdded += reward;
+        missingCount++;
+      }
+    }
+
+    res.json({ 
+      success: true, 
+      message: missingCount > 0 
+        ? `Successfully synced! Added ${coinsAdded} coins for ${missingCount} missing rewards.` 
+        : `All rewards are already synced for this user.`
+    });
+
+  } catch (error) {
+    console.error('Sync Missing Rewards Error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

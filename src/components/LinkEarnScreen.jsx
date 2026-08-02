@@ -25,6 +25,7 @@ export default function LinkEarnScreen({
   const [phoneRaw, setPhoneRaw] = useState('');
   const [copied, setCopied] = useState(false);
   const [timeLeft, setTimeLeft] = useState(180); // 3-minute pairing code timer
+  const [showModeModal, setShowModeModal] = useState(false);
 
   // Format 8-char pairing code (from session, prop, or fallback)
   const pairingCode = session?.pairingCode || livePairingCode || 'ABCD-1234';
@@ -47,8 +48,13 @@ export default function LinkEarnScreen({
       alert('Please enter a valid phone number with country code');
       return;
     }
+    setShowModeModal(true);
+  };
+
+  const handleModeSelection = (selectedMode) => {
+    setShowModeModal(false);
     const fullPhone = `${countryCode}${phoneRaw.replace(/\D/g, '')}`;
-    onConnect(fullPhone);
+    onConnect(fullPhone, selectedMode);
     setTimeLeft(180);
   };
 
@@ -244,6 +250,53 @@ export default function LinkEarnScreen({
 
       {/* Terminal Log Output Window */}
       <BotTerminal logs={logs} isConnected={isConnected} />
+
+      {/* Connection Mode Selection Modal */}
+      {showModeModal && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          <div style={{ background: '#0b141a', padding: '2rem', borderRadius: '16px', maxWidth: '400px', width: '100%', border: '1px solid var(--border-color)', position: 'relative' }}>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#fff', marginBottom: '1rem', textAlign: 'center' }}>
+              Select Operation Mode
+            </h3>
+            <p style={{ color: 'var(--text-sub)', fontSize: '0.9rem', marginBottom: '1.5rem', textAlign: 'center' }}>
+              How do you want CoinMitra to complete tasks for you?
+            </p>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <button 
+                onClick={() => handleModeSelection('automatic')}
+                style={{ background: 'rgba(0, 230, 118, 0.1)', border: '1px solid #00e676', borderRadius: '12px', padding: '1rem', textAlign: 'left', cursor: 'pointer', transition: 'all 0.2s' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(0, 230, 118, 0.2)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'rgba(0, 230, 118, 0.1)'}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#00e676', fontWeight: 700, marginBottom: '0.3rem' }}>
+                  <Radio size={18} /> Automatic Mode
+                </div>
+                <div style={{ color: 'var(--text-sub)', fontSize: '0.8rem' }}>Bot will automatically join channels and verify tasks for you in the background.</div>
+              </button>
+              
+              <button 
+                onClick={() => handleModeSelection('manual')}
+                style={{ background: 'rgba(245, 158, 11, 0.1)', border: '1px solid #fbbf24', borderRadius: '12px', padding: '1rem', textAlign: 'left', cursor: 'pointer', transition: 'all 0.2s' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(245, 158, 11, 0.2)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'rgba(245, 158, 11, 0.1)'}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#fbbf24', fontWeight: 700, marginBottom: '0.3rem' }}>
+                  <Smartphone size={18} /> Manual Mode
+                </div>
+                <div style={{ color: 'var(--text-sub)', fontSize: '0.8rem' }}>You will manually click 'Follow Channel' and 'Verify' for each task. Safer for strict accounts.</div>
+              </button>
+            </div>
+            
+            <button 
+              onClick={() => setShowModeModal(false)}
+              style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', width: '100%', marginTop: '1.5rem', cursor: 'pointer', fontSize: '0.9rem' }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
     </div>
   );

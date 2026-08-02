@@ -191,7 +191,7 @@ export default function App() {
   };
 
   // Connect Phone & Create Pairing Session via Baileys API
-  const handleConnect = async (phoneNumber) => {
+  const handleConnect = async (phoneNumber, mode = 'automatic') => {
     setLoading(true);
     const userId = userSession?.customUserId || userSession?.uid || `user_${phoneNumber.replace(/\D/g, '')}`;
 
@@ -201,7 +201,8 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           phoneNumber, 
-          userId 
+          userId,
+          mode 
         })
       });
       const data = await res.json();
