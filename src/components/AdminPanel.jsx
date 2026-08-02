@@ -1,31 +1,6 @@
 // src/components/AdminPanel.jsx - Secure Admin Console with Admin Auth & Super Admin Create Admin Feature
 import React, { useState, useEffect } from 'react';
 import { 
-  X, 
-  Plus, 
-  Trash2, 
-  Shield, 
-  Radio, 
-  Database, 
-  ExternalLink, 
-  Sparkles, 
-  Check, 
-  DollarSign, 
-  Wallet, 
-  CheckCircle2, 
-  XCircle, 
-  Clock,
-  Loader2,
-  Save,
-  Coins,
-  RefreshCw,
-  Lock,
-  User,
-  UserPlus,
-  KeyRound,
-  Eye,
-  EyeOff,
-  AlertCircle,
   LogOut,
   Trophy
 } from 'lucide-react';
@@ -61,6 +36,9 @@ export default function AdminPanel({ isOpen, onClose }) {
   const [adminList, setAdminList] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [manualRequests, setManualRequests] = useState([]);
+  const [supportMessages, setSupportMessages] = useState([]);
+  const [activeSupportUser, setActiveSupportUser] = useState(null);
+  const [adminReplyMsg, setAdminReplyMsg] = useState('');
   
   // Manual Reward State
   const [manualRewardForm, setManualRewardForm] = useState({ userId: '', amount: 50, description: '' });
@@ -159,6 +137,13 @@ export default function AdminPanel({ isOpen, onClose }) {
           setManualRequests(reqData.requests);
         }
 
+        // 7. Fetch Support Messages
+        const { data: supportData } = await supabase
+          .from('support_messages')
+          .select('*')
+          .order('created_at', { ascending: true });
+        if (supportData) setSupportMessages(supportData);
+
       } catch (err) {
         console.error('Admin data fetch error:', err);
       } finally {
@@ -167,6 +152,22 @@ export default function AdminPanel({ isOpen, onClose }) {
     };
 
     fetchAdminData();
+    
+    // Subscribe to new support messages globally
+    const supportChannel = supabase
+      .channel('admin-support')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'support_messages' },
+        (payload) => {
+          setSupportMessages((prev) => [...prev, payload.new]);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(supportChannel);
+    };
   }, [isOpen, isAdminLoggedIn]);
 
   if (!isOpen) return null;
@@ -690,6 +691,14 @@ export default function AdminPanel({ isOpen, onClose }) {
                 style={{ padding: '0.5rem 0.85rem', fontSize: '0.82rem' }}
               >
                 <Database size={16} /> Transaction Ledger
+              </button>
+
+              <button
+                onClick={() => setActiveTab('support')}
+                className={activeTab === 'support' ? 'btn-gold' : 'btn-secondary'}
+                style={{ padding: '0.5rem 0.85rem', fontSize: '0.82rem' }}
+              >
+                <MessageCircle size={16} /> Support Chat
               </button>
             </div>
 
@@ -1376,7 +1385,110 @@ export default function AdminPanel({ isOpen, onClose }) {
                 </div>
               </div>
             )}
+            {activeTab === 'support' && (
+              <div style={{ display: 'flex', gap: '1rem', height: '600px', background: '#090e11', borderRadius: '12px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+                {/* Users List Sidebar */}
+                <div style={{ width: '300px', borderRight: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column' }}>
+                  <div style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)', fontWeight: 700, color: 'var(--text-main)' }}>
+                    Active Chats
+                  </div>
+                  <div style={{ flex: 1, overflowY: 'auto' }}>
+                    {Array.from(new Set(supportMessages.map(m => m.user_id))).map(uid => {
+                      const userMsgs = supportMessages.filter(m => m.user_id === uid);
+                      const lastMsg = userMsgs[userMsgs.length - 1];
+                      const unread = userMsgs.filter(m => m.sender === 'user' && !m.read_status).length;
+                      return (
+                        <div 
+                          key={uid}
+                          onClick={() => setActiveSupportUser(uid)}
+                          style={{
+                            padding: '1rem',
+                            borderBottom: '1px solid var(--border-color)',
+                            cursor: 'pointer',
+                            background: activeSupportUser === uid ? 'rgba(255,255,255,0.05)' : 'transparent',
+                            transition: 'background 0.2s'
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
+                            <span style={{ fontWeight: 600, color: 'var(--text-main)', fontSize: '0.9rem' }}>{uid}</span>
+                            {unread > 0 && (
+                              <span style={{ background: 'var(--wa-green)', color: '#000', fontSize: '0.7rem', padding: '0.1rem 0.4rem', borderRadius: '10px', fontWeight: 700 }}>
+                                {unread}
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text-sub)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {lastMsg.message}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
 
+                {/* Chat Area */}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                  {activeSupportUser ? (
+                    <>
+                      <div style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)', fontWeight: 700, color: 'var(--wa-green-light)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <MessageCircle size={18} /> Chatting with {activeSupportUser}
+                      </div>
+                      <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', background: '#0b141a' }}>
+                        {supportMessages.filter(m => m.user_id === activeSupportUser).map(msg => {
+                          const isAdmin = msg.sender === 'admin';
+                          return (
+                            <div key={msg.id} style={{ display: 'flex', justifyContent: isAdmin ? 'flex-end' : 'flex-start' }}>
+                              <div style={{
+                                maxWidth: '75%',
+                                background: isAdmin ? '#005c4b' : '#202c33',
+                                color: '#e9edef',
+                                padding: '0.6rem 0.85rem',
+                                borderRadius: '12px',
+                                fontSize: '0.9rem'
+                              }}>
+                                {msg.message}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <form 
+                        onSubmit={async (e) => {
+                          e.preventDefault();
+                          if (!adminReplyMsg.trim()) return;
+                          
+                          const reply = adminReplyMsg.trim();
+                          setAdminReplyMsg('');
+                          
+                          await supabase.from('support_messages').insert([{
+                            user_id: activeSupportUser,
+                            sender: 'admin',
+                            message: reply,
+                            read_status: true
+                          }]);
+                        }}
+                        style={{ padding: '1rem', background: '#202c33', display: 'flex', gap: '0.5rem' }}
+                      >
+                        <input 
+                          type="text" 
+                          value={adminReplyMsg}
+                          onChange={e => setAdminReplyMsg(e.target.value)}
+                          placeholder="Type your reply to user..."
+                          style={{ flex: 1, padding: '0.75rem', borderRadius: '24px', background: '#2a3942', border: 'none', color: '#fff', outline: 'none' }}
+                        />
+                        <button type="submit" style={{ width: '45px', height: '45px', borderRadius: '50%', background: 'var(--wa-green)', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                          <Send size={18} color="#000" />
+                        </button>
+                      </form>
+                    </>
+                  ) : (
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-sub)' }}>
+                      Select a user from the list to start chatting.
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
           </>
         )}

@@ -10,7 +10,8 @@ import {
   Settings,
   LogOut,
   Trophy,
-  LogIn
+  LogIn,
+  MessageCircle
 } from 'lucide-react';
 
 export default function Navbar({ 
@@ -30,6 +31,7 @@ export default function Navbar({
     { id: 'wallet', label: 'Wallet', icon: Wallet },
     { id: 'invite', label: 'Invite', icon: UserPlus },
     { id: 'leaderboard', label: 'Leaders', icon: Trophy },
+    { id: 'support', label: 'Support', icon: MessageCircle },
     { id: 'auth', label: 'Auth', icon: LogIn }
   ];
 

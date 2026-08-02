@@ -7,6 +7,7 @@ import LinkEarnScreen from './components/LinkEarnScreen';
 import WalletScreen from './components/WalletScreen';
 import InviteEarnScreen from './components/InviteEarnScreen';
 import LeaderboardScreen from './components/LeaderboardScreen';
+import SupportScreen from './components/SupportScreen';
 import PairingModal from './components/PairingModal';
 import AdminPanel from './components/AdminPanel';
 import { supabase } from './lib/supabase';
@@ -347,6 +348,12 @@ export default function App() {
 
             {activeTab === 'leaderboard' && (
               <LeaderboardScreen
+                userSession={userSession}
+              />
+            )}
+
+            {activeTab === 'support' && (
+              <SupportScreen
                 userSession={userSession}
               />
             )}
