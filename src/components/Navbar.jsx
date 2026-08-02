@@ -9,7 +9,8 @@ import {
   Coins, 
   Settings,
   LogOut,
-  Trophy
+  Trophy,
+  LogIn
 } from 'lucide-react';
 
 export default function Navbar({ 
