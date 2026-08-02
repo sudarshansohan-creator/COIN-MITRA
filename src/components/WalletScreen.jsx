@@ -149,8 +149,8 @@ export default function WalletScreen({
       // 1. Get exact user UID from database
       const { data: profile } = await supabase
         .from('users')
-        .select('uid, coin_balance')
-        .or(`uid.eq.${userSession.uid},custom_user_id.eq.${userSession.customUserId}`)
+        .select('uid, custom_user_id, coin_balance')
+        .or(`uid.eq.${userSession.uid || '00000000-0000-0000-0000-000000000000'},custom_user_id.eq.${userSession.customUserId || 'none'}`)
         .single();
 
       if (!profile) {
@@ -172,19 +172,20 @@ export default function WalletScreen({
         .from('withdrawals')
         .insert([
           {
-            user_id: profile.uid,
+            user_id: profile.uid || profile.custom_user_id,
             amount_in_inr: rupeesAmount,
             amount_in_coins: amountCoins,
             upi_id: `${paymentMethod}: ${targetAccount}`,
             status: 'pending'
           }
         ])
-        .select()
-        .single();
+        .select();
 
       if (withdrawErr) {
         console.error('Supabase Withdrawal Error:', withdrawErr);
-        setErrorMessage('Failed to record withdrawal in database.');
+        setErrorMessage(`Database Error: ${withdrawErr.message || 'Unknown'}`);
+        setSubmitting(false);
+        return;
       } else {
         // 3. Deduct coins from user balance
         const updatedCoins = Math.max(0, profile.coin_balance - amountCoins);
