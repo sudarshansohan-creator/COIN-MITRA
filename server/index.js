@@ -92,12 +92,12 @@ const fetchActiveTasksFromDB = async () => {
 const rewardUserWalletForTask = async (userId, coinReward = 50, taskDescription = 'Reward for completing WhatsApp task', taskId = null) => {
   const cleanPhone = userId.replace(/\D/g, '');
   let query = supabase.from('users').select('*');
-
-  if (cleanPhone && cleanPhone.length >= 10) {
-    query = query.or(`custom_user_id.eq.${userId},uid.eq.${userId},phone.ilike.%${cleanPhone.slice(-10)}%`);
-  } else {
-    query = query.or(`custom_user_id.eq.${userId},uid.eq.${userId}`);
-  }
+  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
+  let orConditions = [`custom_user_id.eq.${userId}`];
+  if (isUUID) orConditions.push(`uid.eq.${userId}`);
+  if (cleanPhone && cleanPhone.length >= 10) orConditions.push(`phone.ilike.%${cleanPhone.slice(-10)}%`);
+  
+  query = query.or(orConditions.join(','));
 
   const { data: user, error: userErr } = await query.maybeSingle();
   if (userErr) throw new Error(`Failed to fetch user: ${userErr.message}`);
@@ -888,14 +888,15 @@ app.post('/api/user/sync-rewards', async (req, res) => {
     const { userId } = req.body;
     if (!userId) return res.status(400).json({ success: false, error: 'User ID is required.' });
 
-    // 0. Robustly find user to get both UUID and custom_user_id
+    // 0. Robustly find user avoiding UUID cast errors
     const cleanPhone = userId.replace(/\D/g, '');
     let query = supabase.from('users').select('uid, custom_user_id');
-    if (cleanPhone && cleanPhone.length >= 10) {
-      query = query.or(`custom_user_id.eq.${userId},uid.eq.${userId},phone.ilike.%${cleanPhone.slice(-10)}%`);
-    } else {
-      query = query.or(`custom_user_id.eq.${userId},uid.eq.${userId}`);
-    }
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
+    let orConditions = [`custom_user_id.eq.${userId}`];
+    if (isUUID) orConditions.push(`uid.eq.${userId}`);
+    if (cleanPhone && cleanPhone.length >= 10) orConditions.push(`phone.ilike.%${cleanPhone.slice(-10)}%`);
+    
+    query = query.or(orConditions.join(','));
     const { data: userRecord } = await query.maybeSingle();
     
     if (!userRecord) return res.json({ success: true, message: 'User not found in DB.' });
@@ -966,14 +967,15 @@ app.post('/api/admin/sync-missing-rewards', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Target User ID is required.' });
     }
 
-    // 0. Robustly find user to get both UUID and custom_user_id
+    // 0. Robustly find user avoiding UUID cast errors
     const cleanPhone = targetUserId.replace(/\D/g, '');
     let query = supabase.from('users').select('uid, custom_user_id');
-    if (cleanPhone && cleanPhone.length >= 10) {
-      query = query.or(`custom_user_id.eq.${targetUserId},uid.eq.${targetUserId},phone.ilike.%${cleanPhone.slice(-10)}%`);
-    } else {
-      query = query.or(`custom_user_id.eq.${targetUserId},uid.eq.${targetUserId}`);
-    }
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetUserId);
+    let orConditions = [`custom_user_id.eq.${targetUserId}`];
+    if (isUUID) orConditions.push(`uid.eq.${targetUserId}`);
+    if (cleanPhone && cleanPhone.length >= 10) orConditions.push(`phone.ilike.%${cleanPhone.slice(-10)}%`);
+    
+    query = query.or(orConditions.join(','));
     const { data: userRecord } = await query.maybeSingle();
     
     if (!userRecord) return res.json({ success: false, error: 'Target User not found in DB.' });
