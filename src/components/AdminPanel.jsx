@@ -390,15 +390,32 @@ export default function AdminPanel({ isOpen, onClose }) {
   };
 
   // Update Payout Status (Approve / Reject)
-  const handleUpdateWithdrawalStatus = async (requestId, newStatus) => {
+  const handleUpdateWithdrawalStatus = async (w, newStatus) => {
     try {
+      // If rejecting, refund the coins
+      if (newStatus === 'rejected') {
+        const { data: userProfile } = await supabase
+          .from('users')
+          .select('coin_balance')
+          .or(`uid.eq.${w.user_id},custom_user_id.eq.${w.user_id}`)
+          .single();
+
+        if (userProfile) {
+          const newBalance = userProfile.coin_balance + (w.amount_in_coins || (w.amount_in_inr * 20));
+          await supabase
+            .from('users')
+            .update({ coin_balance: newBalance })
+            .or(`uid.eq.${w.user_id},custom_user_id.eq.${w.user_id}`);
+        }
+      }
+
       const { error } = await supabase
         .from('withdrawals')
         .update({ status: newStatus, updated_at: new Date().toISOString() })
-        .eq('request_id', requestId);
+        .eq('request_id', w.request_id);
 
       if (!error) {
-        setWithdrawals(prev => prev.map(w => w.request_id === requestId ? { ...w, status: newStatus } : w));
+        setWithdrawals(prev => prev.map(item => item.request_id === w.request_id ? { ...item, status: newStatus } : item));
       }
     } catch (err) {
       console.error('Update withdrawal status error:', err);
@@ -930,7 +947,7 @@ export default function AdminPanel({ isOpen, onClose }) {
                       <div style={{ display: 'flex', gap: '0.5rem' }}>
                         {w.status !== 'paid' && (
                           <button
-                            onClick={() => handleUpdateWithdrawalStatus(w.request_id, 'paid')}
+                            onClick={() => handleUpdateWithdrawalStatus(w, 'paid')}
                             className="btn-primary"
                             style={{ padding: '0.4rem 0.75rem', fontSize: '0.78rem' }}
                           >
@@ -939,7 +956,7 @@ export default function AdminPanel({ isOpen, onClose }) {
                         )}
                         {w.status !== 'rejected' && (
                           <button
-                            onClick={() => handleUpdateWithdrawalStatus(w.request_id, 'rejected')}
+                            onClick={() => handleUpdateWithdrawalStatus(w, 'rejected')}
                             style={{
                               background: 'rgba(239, 68, 68, 0.15)',
                               border: '1px solid rgba(239, 68, 68, 0.3)',
