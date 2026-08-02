@@ -26,7 +26,14 @@ export default function AuthScreen({ onLoginSuccess }) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [customUserId, setCustomUserId] = useState('');
-  const [referralCode, setReferralCode] = useState('');
+  // Auto-fill referral code from URL parameter ?ref=CODE
+  const [referralCode, setReferralCode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return (params.get('ref') || '').toUpperCase();
+    }
+    return '';
+  });
   
   // Login fields
   const [loginIdentifier, setLoginIdentifier] = useState(''); // User ID or Phone

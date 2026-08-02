@@ -18,7 +18,7 @@ import { supabase } from '../lib/supabase';
 export default function InviteEarnScreen({ userSession }) {
   const [copied, setCopied] = useState(false);
   const referralCode = userSession?.customUserId || userSession?.referralCode || 'CM-98765';
-  const referralLink = `${window.location.origin}?ref=${referralCode}`;
+  const referralLink = `https://thecoinmitra.com?ref=${referralCode}`;
 
   const [referredFriends, setReferredFriends] = useState([]);
   const [loading, setLoading] = useState(true);
