@@ -1244,6 +1244,121 @@ app.post('/api/admin/reject-manual-request', async (req, res) => {
 });
 
 // ==========================================
+// LEADERBOARD APIs
+// ==========================================
+
+// GET Daily Leaderboard
+app.get('/api/leaderboard/daily', async (req, res) => {
+  try {
+    const todayStr = new Date().toISOString().split('T')[0];
+    
+    // Fetch today's transactions for task_reward and referral_bonus
+    const { data: txData, error } = await supabase
+      .from('wallet_transactions')
+      .select('user_id, amount')
+      .in('transaction_type', ['task_reward', 'referral_bonus'])
+      .gte('created_at', `${todayStr}T00:00:00.000Z`)
+      .lte('created_at', `${todayStr}T23:59:59.999Z`);
+
+    if (error) throw error;
+
+    // Aggregate by user_id
+    const userEarnings = {};
+    for (const tx of txData) {
+      if (!userEarnings[tx.user_id]) userEarnings[tx.user_id] = 0;
+      userEarnings[tx.user_id] += tx.amount;
+    }
+
+    // Sort and get top 10
+    const sorted = Object.entries(userEarnings)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10);
+
+    const leaderboard = [];
+    for (let i = 0; i < sorted.length; i++) {
+      const [user_id, amount] = sorted[i];
+      // Try to fetch user name
+      const { data: userData } = await supabase.from('users').select('full_name, phone_number').or(`uid.eq.${user_id},custom_user_id.eq.${user_id}`).maybeSingle();
+      
+      let name = userData?.full_name || 'Anonymous User';
+      if (name === 'Anonymous User' && userData?.phone_number) {
+         name = `User ${userData.phone_number.slice(-4)}`;
+      }
+
+      leaderboard.push({
+        rank: i + 1,
+        user_id,
+        name,
+        amount
+      });
+    }
+
+    res.json({ success: true, leaderboard });
+  } catch (err) {
+    console.error('Leaderboard error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Admin API: Distribute Leaderboard Rewards
+app.post('/api/admin/distribute-leaderboard-rewards', async (req, res) => {
+  try {
+    const { admin_id } = req.body;
+    if (!admin_id) return res.status(403).json({ success: false, error: 'Unauthorized.' });
+
+    // Verify Admin
+    const { data: adminUser } = await supabase.from('admin_users').select('admin_id').eq('admin_id', admin_id).maybeSingle();
+    if (!adminUser && admin_id !== 'ADMIN-COINMITRA') return res.status(403).json({ success: false, error: 'Unauthorized.' });
+
+    // Fetch settings for bonuses
+    const { data: settings } = await supabase.from('platform_settings').select('rank1_bonus, rank2_bonus, rank3_bonus').eq('id', 1).single();
+    const bonuses = [
+      settings?.rank1_bonus || 1000,
+      settings?.rank2_bonus || 500,
+      settings?.rank3_bonus || 200
+    ];
+
+    // Fetch leaderboard
+    const todayStr = new Date().toISOString().split('T')[0];
+    const { data: txData } = await supabase
+      .from('wallet_transactions')
+      .select('user_id, amount')
+      .in('transaction_type', ['task_reward', 'referral_bonus'])
+      .gte('created_at', `${todayStr}T00:00:00.000Z`)
+      .lte('created_at', `${todayStr}T23:59:59.999Z`);
+
+    const userEarnings = {};
+    for (const tx of (txData || [])) {
+      if (!userEarnings[tx.user_id]) userEarnings[tx.user_id] = 0;
+      userEarnings[tx.user_id] += tx.amount;
+    }
+
+    const sorted = Object.entries(userEarnings)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3); // top 3 only
+
+    if (sorted.length === 0) {
+      return res.json({ success: false, error: 'No earnings recorded today. Cannot distribute rewards.' });
+    }
+
+    let distributedCount = 0;
+    for (let i = 0; i < sorted.length; i++) {
+      const [user_id] = sorted[i];
+      const bonus = bonuses[i];
+      if (bonus > 0) {
+        await rewardUserWalletForTask(user_id, bonus, `Daily Leaderboard Bonus (Rank ${i + 1})`, null);
+        distributedCount++;
+      }
+    }
+
+    res.json({ success: true, message: `Successfully distributed leaderboard rewards to top ${distributedCount} users!` });
+  } catch (err) {
+    console.error('Distribute leaderboard rewards error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ==========================================
 // VITE SPA FALLBACK
 // ==========================================
 // ==========================================

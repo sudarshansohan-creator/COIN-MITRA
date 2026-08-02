@@ -26,7 +26,8 @@ import {
   Eye,
   EyeOff,
   AlertCircle,
-  LogOut
+  LogOut,
+  Trophy
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
@@ -261,6 +262,31 @@ export default function AdminPanel({ isOpen, onClose }) {
       alert('Error: ' + err.message);
     } finally {
       setRewarding(false);
+    }
+  };
+
+  const handleDistributeRewards = async () => {
+    if (!window.confirm("Are you sure you want to distribute today's leaderboard rewards now? This will instantly credit coins to the top 3 users.")) return;
+    
+    setSuccessMsg('');
+    try {
+      const response = await fetch('https://coin-mitra.onrender.com/api/admin/distribute-leaderboard-rewards', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ admin_id: adminUser?.admin_id })
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        setSuccessMsg(`✅ ${data.message}`);
+        // Refresh transactions list
+        const { data: txData } = await supabase.from('wallet_transactions').select('*').order('created_at', { ascending: false }).limit(100);
+        if (txData) setTransactions(txData);
+      } else {
+        alert('Failed: ' + (data.error || 'Unknown error'));
+      }
+    } catch (err) {
+      alert('Error: ' + err.message);
     }
   };
 
@@ -767,6 +793,67 @@ export default function AdminPanel({ isOpen, onClose }) {
                         required
                       />
                     </div>
+                  </div>
+                </div>
+
+                <div style={{ background: '#090e11', padding: '1.25rem', borderRadius: '14px', border: '1px solid var(--border-color)' }}>
+                  <h4 style={{ color: '#F59E0B', fontSize: '0.95rem', fontWeight: 700, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <Trophy size={18} /> Daily Leaderboard Rewards
+                  </h4>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+                    <div>
+                      <label style={{ fontSize: '0.8rem', color: 'var(--text-sub)', marginBottom: '0.3rem', display: 'block' }}>
+                        Rank #1 Bonus
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={pricing.rank1_bonus || 1000}
+                        onChange={(e) => setPricing({ ...pricing, rank1_bonus: Number(e.target.value) })}
+                        className="custom-input"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '0.8rem', color: 'var(--text-sub)', marginBottom: '0.3rem', display: 'block' }}>
+                        Rank #2 Bonus
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={pricing.rank2_bonus || 500}
+                        onChange={(e) => setPricing({ ...pricing, rank2_bonus: Number(e.target.value) })}
+                        className="custom-input"
+                        required
+                      />
+                    </div>
+                    
+                    <div>
+                      <label style={{ fontSize: '0.8rem', color: 'var(--text-sub)', marginBottom: '0.3rem', display: 'block' }}>
+                        Rank #3 Bonus
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={pricing.rank3_bonus || 200}
+                        onChange={(e) => setPricing({ ...pricing, rank3_bonus: Number(e.target.value) })}
+                        className="custom-input"
+                        required
+                      />
+                    </div>
+                  </div>
+                  
+                  <div style={{ marginTop: '1.25rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'flex-end' }}>
+                    <button
+                      type="button"
+                      onClick={handleDistributeRewards}
+                      className="btn-primary"
+                      style={{ padding: '0.65rem 1rem', fontSize: '0.85rem' }}
+                    >
+                      <Trophy size={16} /> Distribute Today's Rewards Now
+                    </button>
                   </div>
                 </div>
 

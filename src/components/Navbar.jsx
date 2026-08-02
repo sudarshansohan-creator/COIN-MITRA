@@ -6,10 +6,10 @@ import {
   Radio, 
   Wallet, 
   UserPlus, 
-  LogIn, 
   Coins, 
   Settings,
-  LogOut
+  LogOut,
+  Trophy
 } from 'lucide-react';
 
 export default function Navbar({ 
@@ -28,6 +28,7 @@ export default function Navbar({
     { id: 'link', label: 'Link & Earn', icon: Radio, badge: 'CORE' },
     { id: 'wallet', label: 'Wallet', icon: Wallet },
     { id: 'invite', label: 'Invite', icon: UserPlus },
+    { id: 'leaderboard', label: 'Leaders', icon: Trophy },
     { id: 'auth', label: 'Auth', icon: LogIn }
   ];
 
