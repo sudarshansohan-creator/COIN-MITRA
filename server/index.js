@@ -882,6 +882,61 @@ app.post('/api/admin/manual-reward', async (req, res) => {
   }
 });
 
+// User API: Auto Sync Missing Rewards on App Load
+app.post('/api/user/sync-rewards', async (req, res) => {
+  try {
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ success: false, error: 'User ID is required.' });
+
+    const { data: completions, error: compErr } = await supabase
+      .from('user_task_completions')
+      .select('*')
+      .eq('user_id', userId);
+      
+    if (compErr) throw compErr;
+    if (!completions || completions.length === 0) {
+      return res.json({ success: true, message: 'No completed tasks found.' });
+    }
+
+    const { data: transactions, error: transErr } = await supabase
+      .from('wallet_transactions')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('transaction_type', 'task_reward');
+      
+    if (transErr) throw transErr;
+    
+    let coinsAdded = 0;
+    let missingCount = 0;
+    const promises = [];
+
+    for (const comp of completions) {
+      let hasTransaction = false;
+      if (comp.task_id) {
+        hasTransaction = transactions?.some(t => t.task_id === comp.task_id);
+      } else {
+        hasTransaction = transactions?.some(t => t.description && t.description.includes(comp.channel_link));
+      }
+
+      if (!hasTransaction) {
+        const reward = comp.coins_awarded || 50;
+        promises.push(rewardUserWalletForTask(userId, reward, `Reward for completing task: ${comp.channel_link}`, comp.task_id));
+        coinsAdded += reward;
+        missingCount++;
+      }
+    }
+
+    if (promises.length > 0) {
+      await Promise.all(promises);
+    }
+
+    res.json({ success: true, message: `Synced ${missingCount} rewards.` });
+  } catch (error) {
+    console.error('Auto Sync Rewards Error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Admin API: Sync Missing Rewards
 app.post('/api/admin/sync-missing-rewards', async (req, res) => {
   try {

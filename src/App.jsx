@@ -70,6 +70,13 @@ export default function App() {
             totalTasksCompleted: profile.total_tasks_completed || 0,
             isBotConnected: profile.is_bot_connected || false
           } : null));
+          
+          // Auto-sync missing rewards in the background
+          fetch('https://coin-mitra.onrender.com/api/user/sync-rewards', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: userSession.uid })
+          }).catch(e => console.error('Auto sync error:', e));
         }
       } catch (err) {
         console.error('Global profile sync error:', err);
