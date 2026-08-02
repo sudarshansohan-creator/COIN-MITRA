@@ -851,7 +851,6 @@ app.get('/api/status', (req, res) => {
       followedCount: entry.followedCount || 0,
       phoneNumber: entry.phoneNumber
     });
-    });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
