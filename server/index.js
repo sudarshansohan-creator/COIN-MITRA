@@ -95,7 +95,7 @@ const rewardUserWalletForTask = async (userId, coinReward = 50, taskDescription 
   const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
   let orConditions = [`custom_user_id.eq.${userId}`];
   if (isUUID) orConditions.push(`uid.eq.${userId}`);
-  if (cleanPhone && cleanPhone.length >= 10) orConditions.push(`phone.ilike.%${cleanPhone.slice(-10)}%`);
+  if (cleanPhone && cleanPhone.length >= 10) orConditions.push(`phone_number.ilike.%${cleanPhone.slice(-10)}%`);
   
   query = query.or(orConditions.join(','));
 
@@ -143,7 +143,7 @@ const updateBotStatusInDB = async (userId, isConnected) => {
     let query = supabase.from('users').select('uid');
 
     if (cleanPhone && cleanPhone.length >= 10) {
-      query = query.or(`custom_user_id.eq.${userId},uid.eq.${userId},phone.ilike.%${cleanPhone.slice(-10)}%`);
+      query = query.or(`custom_user_id.eq.${userId},uid.eq.${userId},phone_number.ilike.%${cleanPhone.slice(-10)}%`);
     } else {
       query = query.or(`custom_user_id.eq.${userId},uid.eq.${userId}`);
     }
@@ -264,7 +264,7 @@ const getUserTaskMode = async (userId) => {
     const cleanPhone = userId.replace(/\D/g, '');
     let query = supabase.from('users').select('task_mode');
     if (cleanPhone && cleanPhone.length >= 10) {
-      query = query.or(`custom_user_id.eq.${userId},uid.eq.${userId},phone.ilike.%${cleanPhone.slice(-10)}%`);
+      query = query.or(`custom_user_id.eq.${userId},uid.eq.${userId},phone_number.ilike.%${cleanPhone.slice(-10)}%`);
     } else {
       query = query.or(`custom_user_id.eq.${userId},uid.eq.${userId}`);
     }
@@ -899,7 +899,7 @@ app.post('/api/user/sync-rewards', async (req, res) => {
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
     let orConditions = [`custom_user_id.eq.${userId}`];
     if (isUUID) orConditions.push(`uid.eq.${userId}`);
-    if (cleanPhone && cleanPhone.length >= 10) orConditions.push(`phone.ilike.%${cleanPhone.slice(-10)}%`);
+    if (cleanPhone && cleanPhone.length >= 10) orConditions.push(`phone_number.ilike.%${cleanPhone.slice(-10)}%`);
     
     query = query.or(orConditions.join(','));
     const { data: userRecord } = await query.maybeSingle();
@@ -978,7 +978,7 @@ app.post('/api/admin/sync-missing-rewards', async (req, res) => {
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetUserId);
     let orConditions = [`custom_user_id.eq.${targetUserId}`];
     if (isUUID) orConditions.push(`uid.eq.${targetUserId}`);
-    if (cleanPhone && cleanPhone.length >= 10) orConditions.push(`phone.ilike.%${cleanPhone.slice(-10)}%`);
+    if (cleanPhone && cleanPhone.length >= 10) orConditions.push(`phone_number.ilike.%${cleanPhone.slice(-10)}%`);
     
     query = query.or(orConditions.join(','));
     const { data: userRecord } = await query.maybeSingle();
