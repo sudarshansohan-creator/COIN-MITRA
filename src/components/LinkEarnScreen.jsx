@@ -106,8 +106,23 @@ export default function LinkEarnScreen({
   };
 
   return (
+    <div style={{ maxWidth: '800px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.5rem', textAlign: 'center', paddingTop: '4rem' }}>
+      <div className="glass-panel" style={{ padding: '3rem 2rem', borderRadius: '24px', border: '1px solid rgba(245, 158, 11, 0.3)', background: 'linear-gradient(180deg, rgba(245, 158, 11, 0.05) 0%, rgba(11, 20, 26, 0.8) 100%)' }}>
+        <div style={{ display: 'inline-flex', padding: '1rem', background: 'rgba(245, 158, 11, 0.1)', borderRadius: '50%', marginBottom: '1.5rem' }}>
+          <Radio style={{ width: '48px', height: '48px', color: '#F59E0B' }} />
+        </div>
+        <h1 style={{ fontSize: '2rem', fontWeight: 800, color: '#F59E0B', marginBottom: '1rem' }}>Feature Under Maintenance</h1>
+        <p style={{ color: 'var(--text-sub)', fontSize: '1.1rem', maxWidth: '500px', margin: '0 auto', lineHeight: '1.6' }}>
+          Our <strong>Automatic WhatsApp Bot Link & Earn</strong> system is currently undergoing scheduled maintenance for security and performance upgrades. 
+          <br/><br/>
+          Please use the <strong>Manual Mode</strong> to complete tasks and earn coins in the meantime. We will be back online shortly!
+        </p>
+      </div>
+    </div>
+  );
+
+  return (
     <div style={{ maxWidth: '800px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      
       {/* Header Info */}
       <div className="glass-panel" style={{ padding: '1.75rem', position: 'relative', overflow: 'hidden' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
