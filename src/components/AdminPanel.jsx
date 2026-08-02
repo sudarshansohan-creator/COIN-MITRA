@@ -369,6 +369,9 @@ export default function AdminPanel({ isOpen, onClose }) {
             referral_bonus_referrer: Number(pricing.referral_bonus_referrer),
             referral_bonus_referee: Number(pricing.referral_bonus_referee),
             default_task_reward: Number(pricing.default_task_reward),
+            rank1_bonus: Number(pricing.rank1_bonus || 1000),
+            rank2_bonus: Number(pricing.rank2_bonus || 500),
+            rank3_bonus: Number(pricing.rank3_bonus || 200),
             updated_at: new Date().toISOString()
           }
         ]);
