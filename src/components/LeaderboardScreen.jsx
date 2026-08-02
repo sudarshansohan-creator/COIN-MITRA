@@ -98,7 +98,7 @@ export default function LeaderboardScreen({ userSession }) {
                       {user.name}
                       {isMe && <span style={{ fontSize: '0.7rem', padding: '2px 6px', background: 'var(--wa-green)', color: '#000', borderRadius: '12px' }}>YOU</span>}
                     </h3>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>ID: {user.user_id.substring(0, 8)}...</span>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>ID: {user?.user_id?.toString().substring(0, 8)}...</span>
                   </div>
                 </div>
                 
