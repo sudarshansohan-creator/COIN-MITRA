@@ -51,10 +51,12 @@ export default function ChannelGrid({
         }
 
         // Fetch user task completions from Supabase
-        const { data: completions } = await supabase
+        const { data: completions, error } = await supabase
           .from('user_task_completions')
           .select('task_id, channel_link')
           .eq('user_id', userId);
+
+        if (error) throw error;
 
         if (completions && Array.isArray(completions)) {
           const map = {};
@@ -65,7 +67,8 @@ export default function ChannelGrid({
           setCompletedTaskMap(map);
         }
       } catch (err) {
-        console.error('Error fetching user mode/completions:', err);
+        // এবার যেকোনো ডাটাবেস এরর ঠিকঠাক এখানে ধরা পড়বে!
+        console.error('Error fetching user mode/completions:', err.message || err);
       }
     };
 
