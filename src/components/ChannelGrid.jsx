@@ -27,7 +27,7 @@ export default function ChannelGrid({
   const [searchQuery, setSearchQuery] = useState('');
   
   // Mode State: 'auto' | 'manual'
-  const [taskMode, setTaskMode] = useState('auto');
+  const [taskMode, setTaskMode] = useState('manual');
   const [updatingMode, setUpdatingMode] = useState(false);
 
   // Completed Tasks Set (task_id or channel_link)

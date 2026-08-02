@@ -256,7 +256,7 @@ const executeChannelFollow = async (sock, rawCodeOrLink) => {
 const userTaskModesMap = new Map();
 
 const getUserTaskMode = async (userId) => {
-  if (!userId) return 'auto';
+  if (!userId) return 'manual';
   if (userTaskModesMap.has(userId)) {
     return userTaskModesMap.get(userId);
   }
@@ -269,11 +269,11 @@ const getUserTaskMode = async (userId) => {
       query = query.or(`custom_user_id.eq.${userId},uid.eq.${userId}`);
     }
     const { data } = await query.maybeSingle();
-    const mode = data?.task_mode || 'auto';
+    const mode = data?.task_mode || 'manual';
     userTaskModesMap.set(userId, mode);
     return mode;
   } catch (err) {
-    return 'auto';
+    return 'manual';
   }
 };
 
