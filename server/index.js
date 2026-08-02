@@ -616,7 +616,12 @@ app.post('/api/execute-task', async (req, res) => {
           });
         }
         console.log(`[COINMITRA BOT] 🎉 SUCCESS! User ${userId} (${sessionEntry.phoneNumber}) followed channel "${inviteCode}"`);
-        await rewardUserWalletForTask(userId, 50);
+        
+        let coinReward = 50;
+        const { data: tData } = await supabase.from('tasks').select('coin_reward').ilike('channel_link', `%${inviteCode}%`).maybeSingle();
+        if (tData && tData.coin_reward) coinReward = tData.coin_reward;
+
+        await rewardUserWalletForTask(userId, coinReward);
       } catch (execErr) {
         console.error(`[COINMITRA BOT] ⚠️ Manual task failed for userId ${userId}:`, execErr.message);
       }
@@ -1195,8 +1200,14 @@ app.post('/api/admin/approve-manual-request', async (req, res) => {
     // Update Status
     await supabase.from('manual_task_requests').update({ status: 'approved', updated_at: new Date().toISOString() }).eq('id', requestId);
 
+    // Get task reward
+    let reward = 50;
+    if (request.task_id) {
+      const { data: tData } = await supabase.from('tasks').select('coin_reward').eq('task_id', request.task_id).maybeSingle();
+      if (tData && tData.coin_reward) reward = tData.coin_reward;
+    }
+
     // Reward Wallet & Record Completion
-    const reward = 50; // Default reward
     await rewardUserWalletForTask(request.user_id, reward, `Reward for completing WhatsApp task: ${request.channel_link}`, request.task_id);
     await supabase.from('user_task_completions').upsert([{
       user_id: request.user_id,

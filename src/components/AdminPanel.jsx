@@ -908,7 +908,7 @@ export default function AdminPanel({ isOpen, onClose }) {
                             <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
                               <button
                                 onClick={async () => {
-                                  if (!window.confirm(`Approve task for ${req.user_id}? They will receive 50 coins.`)) return;
+                                  if (!window.confirm(`Approve task for ${req.user_id}? They will receive the specified coin reward for this task.`)) return;
                                   try {
                                     const res = await fetch('https://coin-mitra.onrender.com/api/admin/approve-manual-request', {
                                       method: 'POST',
