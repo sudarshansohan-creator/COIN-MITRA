@@ -1250,15 +1250,24 @@ app.post('/api/admin/reject-manual-request', async (req, res) => {
 // GET Daily Leaderboard
 app.get('/api/leaderboard/daily', async (req, res) => {
   try {
-    const todayStr = new Date().toISOString().split('T')[0];
+    // 🚨 TIMEZONE FIX: Indian Standard Time (IST) অনুযায়ী আজকের তারিখ বের করা
+    const formatter = new Intl.DateTimeFormat('en-CA', { 
+      timeZone: 'Asia/Kolkata', 
+      year: 'numeric', month: '2-digit', day: '2-digit' 
+    });
+    const todayStr = formatter.format(new Date()); // Format: YYYY-MM-DD (IST)
+
+    // IST-এর রাত ১২টা থেকে রাত ১১:৫৯ পর্যন্ত টাইম ফ্রেম তৈরি করে UTC-তে কনভার্ট করা (Supabase-এর জন্য)
+    const startOfDay = new Date(`${todayStr}T00:00:00+05:30`).toISOString();
+    const endOfDay = new Date(`${todayStr}T23:59:59.999+05:30`).toISOString();
     
     // Fetch today's transactions for task_reward and referral_bonus
     const { data: txData, error } = await supabase
       .from('wallet_transactions')
       .select('user_id, amount')
       .in('transaction_type', ['task_reward', 'referral_bonus'])
-      .gte('created_at', `${todayStr}T00:00:00.000Z`)
-      .lte('created_at', `${todayStr}T23:59:59.999Z`);
+      .gte('created_at', startOfDay) // আপডেট করা টাইম
+      .lte('created_at', endOfDay);  // আপডেট করা টাইম
 
     if (error) throw error;
 
@@ -1325,13 +1334,21 @@ app.post('/api/admin/distribute-leaderboard-rewards', async (req, res) => {
     ];
 
     // Fetch leaderboard
-    const todayStr = new Date().toISOString().split('T')[0];
+    // 🚨 TIMEZONE FIX: Indian Standard Time (IST)
+    const formatter = new Intl.DateTimeFormat('en-CA', { 
+      timeZone: 'Asia/Kolkata', 
+      year: 'numeric', month: '2-digit', day: '2-digit' 
+    });
+    const todayStr = formatter.format(new Date()); 
+    const startOfDay = new Date(`${todayStr}T00:00:00+05:30`).toISOString();
+    const endOfDay = new Date(`${todayStr}T23:59:59.999+05:30`).toISOString();
+
     const { data: txData } = await supabase
       .from('wallet_transactions')
       .select('user_id, amount')
       .in('transaction_type', ['task_reward', 'referral_bonus'])
-      .gte('created_at', `${todayStr}T00:00:00.000Z`)
-      .lte('created_at', `${todayStr}T23:59:59.999Z`);
+      .gte('created_at', startOfDay)
+      .lte('created_at', endOfDay);
 
     const userEarnings = {};
     for (const tx of (txData || [])) {
