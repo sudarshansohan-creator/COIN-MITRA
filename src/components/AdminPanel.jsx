@@ -1,8 +1,7 @@
 // src/components/AdminPanel.jsx - Secure Admin Console with Admin Auth & Super Admin Create Admin Feature
 import React, { useState, useEffect } from 'react';
 import { 
-  LogOut,
-  Trophy
+  X, Plus, Trash2, Shield, Radio, Database, ExternalLink, Sparkles, Check, DollarSign, Wallet, CheckCircle2, XCircle, Clock, Loader2, Save, Coins, RefreshCw, Lock, User, UserPlus, KeyRound, Eye, EyeOff, AlertCircle, LogOut, Trophy, MessageCircle, Send
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
@@ -137,12 +136,16 @@ export default function AdminPanel({ isOpen, onClose }) {
           setManualRequests(reqData.requests);
         }
 
-        // 7. Fetch Support Messages
-        const { data: supportData } = await supabase
-          .from('support_messages')
-          .select('*')
-          .order('created_at', { ascending: true });
-        if (supportData) setSupportMessages(supportData);
+        // 7. Fetch Support Messages (Graceful fail if table not created)
+        try {
+          const { data: supportData } = await supabase
+            .from('support_messages')
+            .select('*')
+            .order('created_at', { ascending: true });
+          if (supportData) setSupportMessages(supportData);
+        } catch (e) {
+          console.warn('Support table missing. Please run SQL script.');
+        }
 
       } catch (err) {
         console.error('Admin data fetch error:', err);
@@ -1433,7 +1436,19 @@ export default function AdminPanel({ isOpen, onClose }) {
                       <div style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)', fontWeight: 700, color: 'var(--wa-green-light)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <MessageCircle size={18} /> Chatting with {activeSupportUser}
                       </div>
-                      <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', background: '#0b141a' }}>
+                      <div style={{ 
+                        flex: 1, 
+                        overflowY: 'auto', 
+                        padding: '1.5rem', 
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        gap: '1rem', 
+                        backgroundColor: '#0b141a',
+                        backgroundImage: 'url("https://w0.peakpx.com/wallpaper/818/148/HD-wallpaper-whatsapp-background-solid-dark-grey.jpg")',
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center',
+                        backgroundBlendMode: 'overlay'
+                      }}>
                         {supportMessages.filter(m => m.user_id === activeSupportUser).map(msg => {
                           const isAdmin = msg.sender === 'admin';
                           return (
@@ -1460,12 +1475,33 @@ export default function AdminPanel({ isOpen, onClose }) {
                           const reply = adminReplyMsg.trim();
                           setAdminReplyMsg('');
                           
-                          await supabase.from('support_messages').insert([{
+                          const tempId = `temp-${Date.now()}`;
+                          setSupportMessages(prev => [...prev, {
+                            id: tempId,
                             user_id: activeSupportUser,
                             sender: 'admin',
                             message: reply,
+                            created_at: new Date().toISOString(),
                             read_status: true
                           }]);
+
+                          try {
+                            const { data, error } = await supabase.from('support_messages').insert([{
+                              user_id: activeSupportUser,
+                              sender: 'admin',
+                              message: reply,
+                              read_status: true
+                            }]).select();
+                            
+                            if (error) throw error;
+                            if (data && data.length > 0) {
+                              setSupportMessages(prev => prev.map(m => m.id === tempId ? data[0] : m));
+                            }
+                          } catch (err) {
+                            console.error('Admin reply error:', err);
+                            setSupportMessages(prev => prev.filter(m => m.id !== tempId));
+                            alert('Failed to send reply. Please check database.');
+                          }
                         }}
                         style={{ padding: '1rem', background: '#202c33', display: 'flex', gap: '0.5rem' }}
                       >

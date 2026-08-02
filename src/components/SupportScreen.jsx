@@ -14,13 +14,17 @@ export default function SupportScreen({ userSession }) {
     if (!userId) return;
 
     const fetchMessages = async () => {
-      const { data, error } = await supabase
-        .from('support_messages')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: true });
+      try {
+        const { data, error } = await supabase
+          .from('support_messages')
+          .select('*')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: true });
 
-      if (data) setMessages(data);
+        if (data) setMessages(data);
+      } catch (err) {
+        console.warn('Support table missing');
+      }
       setLoading(false);
       scrollToBottom();
     };
@@ -39,7 +43,11 @@ export default function SupportScreen({ userSession }) {
           filter: `user_id=eq.${userId}`
         },
         (payload) => {
-          setMessages((prev) => [...prev, payload.new]);
+          // Avoid duplicate if optimistic insert already added it
+          setMessages((prev) => {
+            if (prev.find(m => m.id === payload.new.id)) return prev;
+            return [...prev, payload.new];
+          });
           scrollToBottom();
         }
       )
@@ -62,18 +70,39 @@ export default function SupportScreen({ userSession }) {
 
     const messageText = newMessage.trim();
     setNewMessage(''); // optimistic clear
+    
+    // Optimistic UI Update
+    const tempId = `temp-${Date.now()}`;
+    setMessages(prev => [...prev, {
+      id: tempId,
+      user_id: userId,
+      sender: 'user',
+      message: messageText,
+      created_at: new Date().toISOString()
+    }]);
+    scrollToBottom();
 
-    const { error } = await supabase
-      .from('support_messages')
-      .insert([{
-        user_id: userId,
-        sender: 'user',
-        message: messageText
-      }]);
+    try {
+      const { data, error } = await supabase
+        .from('support_messages')
+        .insert([{
+          user_id: userId,
+          sender: 'user',
+          message: messageText
+        }])
+        .select();
 
-    if (error) {
-      console.error('Error sending message:', error);
-      alert('Failed to send message.');
+      if (error) {
+        throw error;
+      } else if (data && data.length > 0) {
+        // Replace temp message with real one from DB
+        setMessages(prev => prev.map(m => m.id === tempId ? data[0] : m));
+      }
+    } catch (err) {
+      console.error('Error sending message:', err);
+      // Remove temp message if failed
+      setMessages(prev => prev.filter(m => m.id !== tempId));
+      alert('Failed to send message. Have you run the SQL script?');
     }
   };
 
@@ -125,7 +154,11 @@ export default function SupportScreen({ userSession }) {
         display: 'flex',
         flexDirection: 'column',
         gap: '1rem',
-        background: '#0b141a'
+        backgroundColor: '#0b141a',
+        backgroundImage: 'url("https://w0.peakpx.com/wallpaper/818/148/HD-wallpaper-whatsapp-background-solid-dark-grey.jpg")',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundBlendMode: 'overlay'
       }}>
         <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
           <span style={{ background: '#182229', color: 'var(--text-sub)', padding: '0.4rem 0.8rem', borderRadius: '8px', fontSize: '0.75rem' }}>
