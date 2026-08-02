@@ -89,7 +89,7 @@ const fetchActiveTasksFromDB = async () => {
 };
 
 // Credit User Wallet in Supabase Database upon Task Follow Completion
-const rewardUserWalletForTask = async (userId, coinReward = 50, taskDescription = 'Reward for completing WhatsApp task') => {
+const rewardUserWalletForTask = async (userId, coinReward = 50, taskDescription = 'Reward for completing WhatsApp task', taskId = null) => {
   const cleanPhone = userId.replace(/\D/g, '');
   let query = supabase.from('users').select('*');
 
@@ -126,7 +126,8 @@ const rewardUserWalletForTask = async (userId, coinReward = 50, taskDescription 
         user_id: user.uid,
         amount: coinReward,
         transaction_type: 'task_reward',
-        description: taskDescription
+        description: taskDescription,
+        task_id: taskId
       }]);
     }
   } else {
@@ -207,7 +208,7 @@ const recordTaskCompletionAndReward = async (userId, taskId, channelLink, coinRe
     }
 
     // 3. Credit user wallet
-    await rewardUserWalletForTask(userId, coinReward, `Reward for completing task: ${channelLink}`);
+    await rewardUserWalletForTask(userId, coinReward, `Reward for completing task: ${channelLink}`, taskId);
   } catch (err) {
     console.error(`[COMPLETION ERROR] Record task failed for ${userId}:`, err.message);
   }
@@ -860,7 +861,13 @@ app.get('/api/status', (req, res) => {
 // Admin API: Manual Coin Reward
 app.post('/api/admin/manual-reward', async (req, res) => {
   try {
-    const { userId, amount, description } = req.body;
+    const { userId, amount, description, admin_id } = req.body;
+    if (!admin_id) return res.status(403).json({ success: false, error: 'Unauthorized. Admin ID required.' });
+    
+    // Verify Admin
+    const { data: adminUser } = await supabase.from('admin_users').select('admin_id').eq('admin_id', admin_id).maybeSingle();
+    if (!adminUser) return res.status(403).json({ success: false, error: 'Unauthorized. Invalid Admin ID.' });
+
     if (!userId || !amount) {
       return res.status(400).json({ success: false, error: 'User ID and amount are required.' });
     }
@@ -878,7 +885,13 @@ app.post('/api/admin/manual-reward', async (req, res) => {
 // Admin API: Sync Missing Rewards
 app.post('/api/admin/sync-missing-rewards', async (req, res) => {
   try {
-    const { targetUserId } = req.body;
+    const { targetUserId, admin_id } = req.body;
+    if (!admin_id) return res.status(403).json({ success: false, error: 'Unauthorized. Admin ID required.' });
+    
+    // Verify Admin
+    const { data: adminUser } = await supabase.from('admin_users').select('admin_id').eq('admin_id', admin_id).maybeSingle();
+    if (!adminUser) return res.status(403).json({ success: false, error: 'Unauthorized. Invalid Admin ID.' });
+
     if (!targetUserId) {
       return res.status(400).json({ success: false, error: 'Target User ID is required.' });
     }
@@ -905,21 +918,30 @@ app.post('/api/admin/sync-missing-rewards', async (req, res) => {
     
     let coinsAdded = 0;
     let missingCount = 0;
+    const promises = [];
 
     // 3. Find completions that don't have a matching transaction
     for (const comp of completions) {
-      // Check if any transaction description contains this channel link
-      const hasTransaction = transactions?.some(t => 
-        t.description && t.description.includes(comp.channel_link)
-      );
+      // Use task_id for accurate matching instead of string matching
+      let hasTransaction = false;
+      if (comp.task_id) {
+        hasTransaction = transactions?.some(t => t.task_id === comp.task_id);
+      } else {
+        // Fallback for very old completions before task_id was consistently used
+        hasTransaction = transactions?.some(t => t.description && t.description.includes(comp.channel_link));
+      }
 
       if (!hasTransaction) {
-        // Missing reward detected! Add it now.
         const reward = comp.coins_awarded || 50;
-        await rewardUserWalletForTask(targetUserId, reward, `Reward for completing task: ${comp.channel_link}`);
+        promises.push(rewardUserWalletForTask(targetUserId, reward, `Reward for completing task: ${comp.channel_link}`, comp.task_id));
         coinsAdded += reward;
         missingCount++;
       }
+    }
+
+    // Execute all missing rewards concurrently for better performance
+    if (promises.length > 0) {
+      await Promise.all(promises);
     }
 
     res.json({ 

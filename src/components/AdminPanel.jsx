@@ -234,7 +234,7 @@ export default function AdminPanel({ isOpen, onClose }) {
       const response = await fetch('https://coin-mitra.onrender.com/api/admin/manual-reward', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(manualRewardForm)
+        body: JSON.stringify({ ...manualRewardForm, admin_id: adminUser?.admin_id })
       });
       
       const data = await response.json();
@@ -264,7 +264,7 @@ export default function AdminPanel({ isOpen, onClose }) {
       const response = await fetch('https://coin-mitra.onrender.com/api/admin/sync-missing-rewards', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ targetUserId: syncUserId })
+        body: JSON.stringify({ targetUserId: syncUserId, admin_id: adminUser?.admin_id })
       });
       
       const data = await response.json();
