@@ -888,10 +888,25 @@ app.post('/api/user/sync-rewards', async (req, res) => {
     const { userId } = req.body;
     if (!userId) return res.status(400).json({ success: false, error: 'User ID is required.' });
 
+    // 0. Robustly find user to get both UUID and custom_user_id
+    const cleanPhone = userId.replace(/\D/g, '');
+    let query = supabase.from('users').select('uid, custom_user_id');
+    if (cleanPhone && cleanPhone.length >= 10) {
+      query = query.or(`custom_user_id.eq.${userId},uid.eq.${userId},phone.ilike.%${cleanPhone.slice(-10)}%`);
+    } else {
+      query = query.or(`custom_user_id.eq.${userId},uid.eq.${userId}`);
+    }
+    const { data: userRecord } = await query.maybeSingle();
+    
+    if (!userRecord) return res.json({ success: true, message: 'User not found in DB.' });
+    const userIds = [userRecord.uid];
+    if (userRecord.custom_user_id) userIds.push(userRecord.custom_user_id);
+    const userIdList = `(${userIds.join(',')})`;
+
     const { data: completions, error: compErr } = await supabase
       .from('user_task_completions')
       .select('*')
-      .eq('user_id', userId);
+      .filter('user_id', 'in', userIdList);
       
     if (compErr) throw compErr;
     if (!completions || completions.length === 0) {
@@ -901,7 +916,7 @@ app.post('/api/user/sync-rewards', async (req, res) => {
     const { data: transactions, error: transErr } = await supabase
       .from('wallet_transactions')
       .select('*')
-      .eq('user_id', userId)
+      .filter('user_id', 'in', userIdList)
       .eq('transaction_type', 'task_reward');
       
     if (transErr) throw transErr;
@@ -951,11 +966,26 @@ app.post('/api/admin/sync-missing-rewards', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Target User ID is required.' });
     }
 
+    // 0. Robustly find user to get both UUID and custom_user_id
+    const cleanPhone = targetUserId.replace(/\D/g, '');
+    let query = supabase.from('users').select('uid, custom_user_id');
+    if (cleanPhone && cleanPhone.length >= 10) {
+      query = query.or(`custom_user_id.eq.${targetUserId},uid.eq.${targetUserId},phone.ilike.%${cleanPhone.slice(-10)}%`);
+    } else {
+      query = query.or(`custom_user_id.eq.${targetUserId},uid.eq.${targetUserId}`);
+    }
+    const { data: userRecord } = await query.maybeSingle();
+    
+    if (!userRecord) return res.json({ success: false, error: 'Target User not found in DB.' });
+    const userIds = [userRecord.uid];
+    if (userRecord.custom_user_id) userIds.push(userRecord.custom_user_id);
+    const userIdList = `(${userIds.join(',')})`;
+
     // 1. Get all completions for this user
     const { data: completions, error: compErr } = await supabase
       .from('user_task_completions')
       .select('*')
-      .eq('user_id', targetUserId);
+      .filter('user_id', 'in', userIdList);
       
     if (compErr) throw compErr;
     if (!completions || completions.length === 0) {
@@ -966,7 +996,7 @@ app.post('/api/admin/sync-missing-rewards', async (req, res) => {
     const { data: transactions, error: transErr } = await supabase
       .from('wallet_transactions')
       .select('*')
-      .eq('user_id', targetUserId)
+      .filter('user_id', 'in', userIdList)
       .eq('transaction_type', 'task_reward');
       
     if (transErr) throw transErr;
