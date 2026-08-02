@@ -32,6 +32,7 @@ export default function ChannelGrid({
 
   // Completed Tasks Set (task_id or channel_link)
   const [completedTaskMap, setCompletedTaskMap] = useState({});
+  const [pendingTaskMap, setPendingTaskMap] = useState({});
   const [verifyingTaskId, setVerifyingTaskId] = useState(null);
   const [toastMsg, setToastMsg] = useState(null);
 
@@ -51,12 +52,12 @@ export default function ChannelGrid({
         }
 
         // Fetch user task completions from Supabase
-        const { data: completions, error } = await supabase
+        const { data: completions, error: compErr } = await supabase
           .from('user_task_completions')
           .select('task_id, channel_link')
           .eq('user_id', userId);
 
-        if (error) throw error;
+        if (compErr) throw compErr;
 
         if (completions && Array.isArray(completions)) {
           const map = {};
@@ -66,9 +67,27 @@ export default function ChannelGrid({
           });
           setCompletedTaskMap(map);
         }
+
+        // Fetch pending manual requests
+        const { data: requests, error: reqErr } = await supabase
+          .from('manual_task_requests')
+          .select('task_id, channel_link')
+          .eq('user_id', userId)
+          .eq('status', 'pending');
+
+        if (reqErr) throw reqErr;
+
+        if (requests && Array.isArray(requests)) {
+          const pMap = {};
+          requests.forEach(r => {
+            if (r.task_id) pMap[r.task_id] = true;
+            if (r.channel_link) pMap[r.channel_link] = true;
+          });
+          setPendingTaskMap(pMap);
+        }
+
       } catch (err) {
-        // এবার যেকোনো ডাটাবেস এরর ঠিকঠাক এখানে ধরা পড়বে!
-        console.error('Error fetching user mode/completions:', err.message || err);
+        console.error('Error fetching user mode/completions/requests:', err.message || err);
       }
     };
 
@@ -150,6 +169,38 @@ export default function ChannelGrid({
     } catch (err) {
       console.error('Verify task error:', err);
       alert('Failed to connect to verification server. Please check your internet connection.');
+    } finally {
+      setVerifyingTaskId(null);
+    }
+  };
+
+  const handleRequestManualVerify = async (channel) => {
+    const channelId = channel.task_id || channel.id;
+    const channelLink = channel.channel_link || channel.link;
+
+    if (!userId) {
+      alert('Please log in first to request verification.');
+      return;
+    }
+
+    setVerifyingTaskId(channelId);
+
+    try {
+      const res = await fetch('https://coin-mitra.onrender.com/api/request-manual-verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, taskId: channelId, channelLink })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setPendingTaskMap(prev => ({ ...prev, [channelId]: true, [channelLink]: true }));
+        showToast(data.message || 'Request submitted successfully!');
+      } else {
+        alert(data.error || 'Failed to submit request.');
+      }
+    } catch (err) {
+      console.error('Request verify error:', err);
+      alert('Network error. Please try again.');
     } finally {
       setVerifyingTaskId(null);
     }
@@ -459,33 +510,50 @@ export default function ChannelGrid({
                         <ExternalLink size={13} /> Follow ↗
                       </a>
 
-                      {/* Verify Button */}
-                      <button
-                        type="button"
-                        onClick={() => handleVerifyTask(channel)}
-                        disabled={isVerifyingThis}
-                        className="btn-gold"
-                        style={{
-                          padding: '0.35rem 0.75rem',
+                      {/* Request Verification Button */}
+                      {pendingTaskMap[channelId] || pendingTaskMap[channelLink] ? (
+                        <div style={{
+                          color: '#F59E0B',
+                          background: 'rgba(245, 158, 11, 0.15)',
+                          padding: '0.35rem 0.65rem',
+                          borderRadius: '20px',
+                          border: '1px solid rgba(245, 158, 11, 0.3)',
                           fontSize: '0.78rem',
-                          fontWeight: 700,
-                          cursor: 'pointer',
+                          fontWeight: 600,
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: '0.3rem'
-                        }}
-                      >
-                        {isVerifyingThis ? (
-                          <>
-                            <RefreshCw size={13} style={{ animation: 'spin 1s linear infinite' }} />
-                            Verifying...
-                          </>
-                        ) : (
-                          <>
-                            <ShieldCheck size={13} /> Verify Task
-                          </>
-                        )}
-                      </button>
+                          gap: '0.25rem'
+                        }}>
+                          <RefreshCw size={13} style={{ animation: 'spin 2s linear infinite' }} /> Pending
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleRequestManualVerify(channel)}
+                          disabled={isVerifyingThis}
+                          className="btn-gold"
+                          style={{
+                            padding: '0.35rem 0.75rem',
+                            fontSize: '0.78rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.3rem'
+                          }}
+                        >
+                          {isVerifyingThis ? (
+                            <>
+                              <RefreshCw size={13} style={{ animation: 'spin 1s linear infinite' }} />
+                              Requesting...
+                            </>
+                          ) : (
+                            <>
+                              <ShieldCheck size={13} /> Request Verify
+                            </>
+                          )}
+                        </button>
+                      )}
                     </div>
                   ) : isSyncing ? (
                     <div style={{

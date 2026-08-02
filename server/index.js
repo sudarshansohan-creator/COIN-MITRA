@@ -1111,6 +1111,131 @@ if (fs.existsSync(distPath)) {
 }
 
 // ==========================================
+// MANUAL TASK REQUESTS APIS
+// ==========================================
+
+// User API: Request Manual Verification
+app.post('/api/request-manual-verify', async (req, res) => {
+  try {
+    const { userId, taskId, channelLink } = req.body;
+    if (!userId || !taskId || !channelLink) {
+      return res.status(400).json({ success: false, error: 'User ID, Task ID, and Channel Link are required.' });
+    }
+
+    // Check if a request already exists
+    const { data: existing, error: existErr } = await supabase
+      .from('manual_task_requests')
+      .select('id, status')
+      .eq('user_id', userId)
+      .eq('task_id', taskId)
+      .maybeSingle();
+
+    if (existing) {
+      if (existing.status === 'pending') {
+        return res.status(400).json({ success: false, error: 'You already have a pending request for this task.' });
+      }
+      if (existing.status === 'approved') {
+        return res.status(400).json({ success: false, error: 'This task is already approved.' });
+      }
+      // If rejected, they can try again, so we'll update it to pending
+      if (existing.status === 'rejected') {
+        await supabase.from('manual_task_requests').update({ status: 'pending', updated_at: new Date().toISOString() }).eq('id', existing.id);
+        return res.json({ success: true, message: 'Re-submitted manual verification request.' });
+      }
+    }
+
+    const { error: insertErr } = await supabase.from('manual_task_requests').insert([{
+      user_id: userId,
+      task_id: taskId,
+      channel_link: channelLink,
+      status: 'pending'
+    }]);
+
+    if (insertErr) throw insertErr;
+
+    res.json({ success: true, message: 'Verification request submitted. Admin will review it shortly.' });
+  } catch (error) {
+    console.error('Request manual verify error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Admin API: Fetch Pending Requests
+app.get('/api/admin/manual-requests', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('manual_task_requests')
+      .select('*')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    res.json({ success: true, requests: data });
+  } catch (error) {
+    console.error('Fetch manual requests error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Admin API: Approve Manual Request
+app.post('/api/admin/approve-manual-request', async (req, res) => {
+  try {
+    const { requestId, admin_id } = req.body;
+    if (!admin_id) return res.status(403).json({ success: false, error: 'Unauthorized.' });
+
+    // Verify Admin
+    const { data: adminUser } = await supabase.from('admin_users').select('admin_id').eq('admin_id', admin_id).maybeSingle();
+    if (!adminUser) return res.status(403).json({ success: false, error: 'Unauthorized. Invalid Admin ID.' });
+
+    // Fetch Request
+    const { data: request, error: reqErr } = await supabase.from('manual_task_requests').select('*').eq('id', requestId).maybeSingle();
+    if (reqErr || !request) return res.status(404).json({ success: false, error: 'Request not found.' });
+    if (request.status !== 'pending') return res.status(400).json({ success: false, error: 'Request is no longer pending.' });
+
+    // Update Status
+    await supabase.from('manual_task_requests').update({ status: 'approved', updated_at: new Date().toISOString() }).eq('id', requestId);
+
+    // Reward Wallet & Record Completion
+    const reward = 50; // Default reward
+    await rewardUserWalletForTask(request.user_id, reward, `Reward for completing WhatsApp task: ${request.channel_link}`, request.task_id);
+    await supabase.from('user_task_completions').upsert([{
+      user_id: request.user_id,
+      task_id: request.task_id,
+      channel_link: request.channel_link,
+      coins_awarded: reward,
+      completed_at: new Date().toISOString()
+    }], { onConflict: 'user_id,task_id' });
+
+    res.json({ success: true, message: 'Request approved and coins awarded.' });
+  } catch (error) {
+    console.error('Approve manual request error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Admin API: Reject Manual Request
+app.post('/api/admin/reject-manual-request', async (req, res) => {
+  try {
+    const { requestId, admin_id } = req.body;
+    if (!admin_id) return res.status(403).json({ success: false, error: 'Unauthorized.' });
+
+    // Verify Admin
+    const { data: adminUser } = await supabase.from('admin_users').select('admin_id').eq('admin_id', admin_id).maybeSingle();
+    if (!adminUser) return res.status(403).json({ success: false, error: 'Unauthorized. Invalid Admin ID.' });
+
+    await supabase.from('manual_task_requests').update({ status: 'rejected', updated_at: new Date().toISOString() }).eq('id', requestId);
+
+    res.json({ success: true, message: 'Request rejected.' });
+  } catch (error) {
+    console.error('Reject manual request error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ==========================================
+// VITE SPA FALLBACK
+// ==========================================
+// ==========================================
 // START SERVER
 // ==========================================
 const startServer = (portToUse) => {

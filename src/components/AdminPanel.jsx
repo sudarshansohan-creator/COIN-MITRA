@@ -59,6 +59,7 @@ export default function AdminPanel({ isOpen, onClose }) {
   const [tasks, setTasks] = useState([]);
   const [adminList, setAdminList] = useState([]);
   const [transactions, setTransactions] = useState([]);
+  const [manualRequests, setManualRequests] = useState([]);
   
   // Manual Reward State
   const [manualRewardForm, setManualRewardForm] = useState({ userId: '', amount: 50, description: '' });
@@ -149,6 +150,14 @@ export default function AdminPanel({ isOpen, onClose }) {
           .limit(100);
 
         if (txData) setTransactions(txData);
+
+        // 6. Fetch Pending Manual Requests
+        const resReq = await fetch('https://coin-mitra.onrender.com/api/admin/manual-requests');
+        const reqData = await resReq.json();
+        if (reqData.success && reqData.requests) {
+          setManualRequests(reqData.requests);
+        }
+
       } catch (err) {
         console.error('Admin data fetch error:', err);
       } finally {
@@ -598,6 +607,14 @@ export default function AdminPanel({ isOpen, onClose }) {
               </button>
 
               <button
+                onClick={() => setActiveTab('task_approvals')}
+                className={activeTab === 'task_approvals' ? 'btn-gold' : 'btn-secondary'}
+                style={{ padding: '0.5rem 0.85rem', fontSize: '0.82rem' }}
+              >
+                <CheckCircle2 size={16} /> Task Approvals ({manualRequests.length})
+              </button>
+
+              <button
                 onClick={() => setActiveTab('tasks')}
                 className={activeTab === 'tasks' ? 'btn-primary' : 'btn-secondary'}
                 style={{ padding: '0.5rem 0.85rem', fontSize: '0.82rem' }}
@@ -856,7 +873,91 @@ export default function AdminPanel({ isOpen, onClose }) {
               </div>
             )}
 
-            {/* ================= TAB 3: MANAGE TASKS ================= */}
+            {/* ================= TAB 3: TASK APPROVALS ================= */}
+            {activeTab === 'task_approvals' && (
+            <div style={{ background: '#090e11', borderRadius: '14px', padding: '1.5rem', border: '1px solid var(--border-color)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem' }}>
+                <CheckCircle2 size={18} color="#fbbf24" />
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#ffffff' }}>Manual Task Verification Requests</h3>
+              </div>
+              
+              <div style={{ overflowX: 'auto' }}>
+                {manualRequests.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-sub)' }}>No pending requests found.</div>
+                ) : (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-sub)', textAlign: 'left' }}>
+                        <th style={{ padding: '0.75rem' }}>User ID</th>
+                        <th style={{ padding: '0.75rem' }}>Channel Link</th>
+                        <th style={{ padding: '0.75rem' }}>Date Requested</th>
+                        <th style={{ padding: '0.75rem', textAlign: 'right' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {manualRequests.map((req) => (
+                        <tr key={req.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                          <td style={{ padding: '0.75rem', color: '#ffffff' }}>{req.user_id}</td>
+                          <td style={{ padding: '0.75rem', color: '#ffffff' }}>
+                            <a href={req.channel_link} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--wa-green-light)', textDecoration: 'underline' }}>
+                              View Channel
+                            </a>
+                          </td>
+                          <td style={{ padding: '0.75rem', color: 'var(--text-sub)' }}>{new Date(req.created_at).toLocaleString()}</td>
+                          <td style={{ padding: '0.75rem', textAlign: 'right' }}>
+                            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                              <button
+                                onClick={async () => {
+                                  if (!window.confirm(`Approve task for ${req.user_id}? They will receive 50 coins.`)) return;
+                                  try {
+                                    const res = await fetch('https://coin-mitra.onrender.com/api/admin/approve-manual-request', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ requestId: req.id, admin_id: adminUser?.admin_id })
+                                    });
+                                    const data = await res.json();
+                                    if (data.success) {
+                                      setManualRequests(manualRequests.filter(r => r.id !== req.id));
+                                      alert('Request approved successfully!');
+                                    } else alert('Error: ' + data.error);
+                                  } catch (err) { alert('Network Error'); }
+                                }}
+                                style={{ background: '#00e676', color: '#000', border: 'none', padding: '0.4rem 0.6rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 }}
+                              >
+                                Approve ✔
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  if (!window.confirm(`Reject this request?`)) return;
+                                  try {
+                                    const res = await fetch('https://coin-mitra.onrender.com/api/admin/reject-manual-request', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ requestId: req.id, admin_id: adminUser?.admin_id })
+                                    });
+                                    const data = await res.json();
+                                    if (data.success) {
+                                      setManualRequests(manualRequests.filter(r => r.id !== req.id));
+                                      alert('Request rejected.');
+                                    } else alert('Error: ' + data.error);
+                                  } catch (err) { alert('Network Error'); }
+                                }}
+                                style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '0.4rem 0.6rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 }}
+                              >
+                                Reject ✖
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+            )}
+
+            {/* ================= TAB 4: MANAGE TASKS ================= */}
             {activeTab === 'tasks' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 {tasks.map((task) => (
@@ -914,7 +1015,7 @@ export default function AdminPanel({ isOpen, onClose }) {
               </div>
             )}
 
-            {/* ================= TAB 4: ADD TASK ================= */}
+            {/* ================= TAB 5: ADD TASK ================= */}
             {activeTab === 'add_task' && (
               <form onSubmit={handleAddTaskSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 {successMsg && (
