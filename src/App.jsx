@@ -75,7 +75,7 @@ export default function App() {
           fetch('https://coin-mitra.onrender.com/api/user/sync-rewards', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: userSession.uid })
+            body: JSON.stringify({ userId: userSession.customUserId || userSession.uid })
           }).catch(e => console.error('Auto sync error:', e));
         }
       } catch (err) {
