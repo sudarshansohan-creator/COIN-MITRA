@@ -68,6 +68,10 @@ export default function AuthScreen({ onLoginSuccess }) {
       setErrorMessage('Password must be at least 6 characters long');
       return;
     }
+    if (referralCode && customUserId && referralCode.toUpperCase() === customUserId.toUpperCase()) {
+      setErrorMessage('You cannot use your own User ID as a referral code.');
+      return;
+    }
 
     setLoading(true);
 
