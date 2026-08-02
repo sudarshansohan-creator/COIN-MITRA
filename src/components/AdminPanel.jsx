@@ -57,6 +57,11 @@ export default function AdminPanel({ isOpen, onClose }) {
   const [withdrawals, setWithdrawals] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [adminList, setAdminList] = useState([]);
+  const [transactions, setTransactions] = useState([]);
+  
+  // Manual Reward State
+  const [manualRewardForm, setManualRewardForm] = useState({ userId: '', amount: 50, description: '' });
+  const [rewarding, setRewarding] = useState(false);
 
   // Forms State
   const [taskForm, setTaskForm] = useState({
@@ -133,6 +138,14 @@ export default function AdminPanel({ isOpen, onClose }) {
           .order('created_at', { ascending: false });
 
         if (adminsData) setAdminList(adminsData);
+        // 5. Fetch Transactions Ledger
+        const { data: txData } = await supabase
+          .from('wallet_transactions')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(100);
+
+        if (txData) setTransactions(txData);
       } catch (err) {
         console.error('Admin data fetch error:', err);
       } finally {
@@ -208,6 +221,35 @@ export default function AdminPanel({ isOpen, onClose }) {
     sessionStorage.removeItem('coinmitra_admin_auth');
     setIsAdminLoggedIn(false);
     setAdminUser(null);
+  };
+
+  const handleManualReward = async (e) => {
+    e.preventDefault();
+    setSuccessMsg('');
+    setRewarding(true);
+    
+    try {
+      const response = await fetch('/api/admin/manual-reward', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(manualRewardForm)
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        setSuccessMsg(`✅ ${data.message}`);
+        setManualRewardForm({ userId: '', amount: 50, description: '' });
+        // Refresh transactions list
+        const { data: txData } = await supabase.from('wallet_transactions').select('*').order('created_at', { ascending: false }).limit(100);
+        if (txData) setTransactions(txData);
+      } else {
+        alert('Failed: ' + (data.error || 'Unknown error'));
+      }
+    } catch (err) {
+      alert('Error: ' + err.message);
+    } finally {
+      setRewarding(false);
+    }
   };
 
   // Create New Admin Account in Supabase
@@ -544,6 +586,14 @@ export default function AdminPanel({ isOpen, onClose }) {
                 style={{ padding: '0.5rem 0.85rem', fontSize: '0.82rem' }}
               >
                 <UserPlus size={16} /> Create Co-Admin
+              </button>
+              
+              <button
+                onClick={() => setActiveTab('transactions')}
+                className={activeTab === 'transactions' ? 'btn-gold' : 'btn-secondary'}
+                style={{ padding: '0.5rem 0.85rem', fontSize: '0.82rem' }}
+              >
+                <Database size={16} /> Transaction Ledger
               </button>
             </div>
 
@@ -986,6 +1036,84 @@ export default function AdminPanel({ isOpen, onClose }) {
 
               </div>
             )}
+
+            {/* ================= TAB 6: TRANSACTION LEDGER & MANUAL REWARDS ================= */}
+            {activeTab === 'transactions' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                {successMsg && (
+                  <div style={{ background: 'rgba(0, 230, 118, 0.15)', border: '1px solid #00e676', color: '#00e676', padding: '0.75rem', borderRadius: '10px', fontSize: '0.85rem' }}>
+                    {successMsg}
+                  </div>
+                )}
+
+                {/* Manual Reward Form */}
+                <form onSubmit={handleManualReward} style={{ background: '#090e11', padding: '1.25rem', borderRadius: '14px', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <h4 style={{ color: '#fbbf24', fontSize: '0.95rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <Plus size={18} /> Add Manual Reward
+                  </h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+                    <div>
+                      <label style={{ fontSize: '0.8rem', color: 'var(--text-sub)' }}>User ID (e.g. CM-12345)</label>
+                      <input type="text" required value={manualRewardForm.userId} onChange={e => setManualRewardForm({...manualRewardForm, userId: e.target.value})} className="custom-input" placeholder="User ID or Phone" />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.8rem', color: 'var(--text-sub)' }}>Coin Amount</label>
+                      <input type="number" required value={manualRewardForm.amount} onChange={e => setManualRewardForm({...manualRewardForm, amount: parseInt(e.target.value)})} className="custom-input" min="1" />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.8rem', color: 'var(--text-sub)' }}>Description / Reason</label>
+                      <input type="text" required value={manualRewardForm.description} onChange={e => setManualRewardForm({...manualRewardForm, description: e.target.value})} className="custom-input" placeholder="e.g. Manual verification for task XYZ" />
+                    </div>
+                  </div>
+                  <button type="submit" disabled={rewarding} className="btn-gold" style={{ padding: '0.85rem', justifyContent: 'center' }}>
+                    {rewarding ? <Loader2 className="spinner" size={16} /> : <Coins size={16} />}
+                    {rewarding ? 'Processing...' : 'Send Coins to User Wallet'}
+                  </button>
+                </form>
+
+                {/* Ledger List */}
+                <div>
+                  <h4 style={{ color: 'var(--text-main)', fontSize: '0.95rem', fontWeight: 700, marginBottom: '0.75rem' }}>
+                    Recent Transactions Ledger ({transactions.length})
+                  </h4>
+                  
+                  {transactions.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-sub)', background: '#090e11', borderRadius: '12px' }}>
+                      No transactions recorded yet.
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      {transactions.map((tx) => (
+                        <div key={tx.id} style={{
+                          background: '#090e11',
+                          border: '1px solid var(--border-color)',
+                          borderRadius: '10px',
+                          padding: '0.85rem',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center'
+                        }}>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
+                              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)' }}>{tx.user_id}</span>
+                              <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.4rem', borderRadius: '4px', background: tx.transaction_type === 'withdrawal' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(0, 230, 118, 0.15)', color: tx.transaction_type === 'withdrawal' ? '#f87171' : '#00e676' }}>
+                                {tx.transaction_type}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-sub)' }}>{tx.description}</div>
+                            <div style={{ fontSize: '0.65rem', color: 'var(--text-sub)', marginTop: '0.2rem' }}>{new Date(tx.created_at).toLocaleString()}</div>
+                          </div>
+                          <div style={{ fontSize: '1.1rem', fontWeight: 800, color: tx.transaction_type === 'withdrawal' ? '#f87171' : '#fbbf24' }}>
+                            {tx.transaction_type === 'withdrawal' ? '-' : '+'}{tx.amount}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
 
           </>
         )}

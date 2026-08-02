@@ -89,7 +89,7 @@ const fetchActiveTasksFromDB = async () => {
 };
 
 // Credit User Wallet in Supabase Database upon Task Follow Completion
-const rewardUserWalletForTask = async (userId, coinReward = 50) => {
+const rewardUserWalletForTask = async (userId, coinReward = 50, taskDescription = 'Reward for completing WhatsApp task') => {
   const cleanPhone = userId.replace(/\D/g, '');
   let query = supabase.from('users').select('*');
 
@@ -119,7 +119,15 @@ const rewardUserWalletForTask = async (userId, coinReward = 50) => {
       console.error(`[REWARD ERROR] Failed updating balance for ${user.full_name}:`, updateErr.message);
       throw new Error(`Failed to update user wallet: ${updateErr.message}`);
     } else {
-      console.log(`[REWARD] 💰 Credited +${coinReward} coins to ${user.full_name} (${user.custom_user_id}). New Balance: ${newBalance} coins. Total Completed: ${newTasksCompleted}`);
+      console.log(`[REWARD] 💰 Credited +${coinReward} coins to ${user.full_name} (${user.custom_user_id}). New Balance: ${newBalance} coins.`);
+      
+      // Log transaction
+      await supabase.from('wallet_transactions').insert([{
+        user_id: user.uid,
+        amount: coinReward,
+        transaction_type: 'task_reward',
+        description: taskDescription
+      }]);
     }
   } else {
     console.warn(`[REWARD WARNING] Could not find user matching ID/phone: ${userId} in Supabase users table.`);
@@ -199,7 +207,7 @@ const recordTaskCompletionAndReward = async (userId, taskId, channelLink, coinRe
     }
 
     // 3. Credit user wallet
-    await rewardUserWalletForTask(userId, coinReward);
+    await rewardUserWalletForTask(userId, coinReward, `Reward for completing task: ${channelLink}`);
   } catch (err) {
     console.error(`[COMPLETION ERROR] Record task failed for ${userId}:`, err.message);
   }
@@ -843,7 +851,26 @@ app.get('/api/status', (req, res) => {
       followedCount: entry.followedCount || 0,
       phoneNumber: entry.phoneNumber
     });
+    });
   } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Admin API: Manual Coin Reward
+app.post('/api/admin/manual-reward', async (req, res) => {
+  try {
+    const { userId, amount, description } = req.body;
+    if (!userId || !amount) {
+      return res.status(400).json({ success: false, error: 'User ID and amount are required.' });
+    }
+
+    // Reuse the robust wallet updater
+    await rewardUserWalletForTask(userId, parseInt(amount), description || 'Manual Coin Reward by Admin');
+    
+    res.json({ success: true, message: `Successfully added ${amount} coins to ${userId}.` });
+  } catch (error) {
+    console.error('Manual Reward Error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

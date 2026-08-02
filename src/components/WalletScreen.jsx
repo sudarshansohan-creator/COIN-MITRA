@@ -28,7 +28,8 @@ export default function WalletScreen({
 
   // Live Supabase User Balance & Withdrawals
   const [coinBalance, setCoinBalance] = useState(userSession?.coinBalance || 0);
-  const [transactions, setTransactions] = useState([]);
+  const [withdrawals, setWithdrawals] = useState([]);
+  const [walletTx, setWalletTx] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
@@ -71,8 +72,18 @@ export default function WalletScreen({
             .order('created_at', { ascending: false });
 
           if (withdrawalsData) {
-            setTransactions(withdrawalsData);
+            setWithdrawals(withdrawalsData);
           }
+
+          // Fetch User's Transactions Ledger
+          const { data: txData } = await supabase
+            .from('wallet_transactions')
+            .select('*')
+            .eq('user_id', targetUid)
+            .order('created_at', { ascending: false })
+            .limit(50);
+
+          if (txData) setWalletTx(txData);
         }
       } catch (err) {
         console.error('Wallet data fetch error:', err);
@@ -411,11 +422,11 @@ export default function WalletScreen({
         </div>
       </div>
 
-      {/* Payout Transaction History Status List (Realtime Supabase) */}
-      <div className="glass-panel" style={{ padding: '1.75rem' }}>
+      {/* Payout Withdrawals History Status List (Realtime Supabase) */}
+      <div className="glass-panel" style={{ padding: '1.75rem', marginBottom: '1.5rem' }}>
         <h3 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <Clock style={{ width: '20px', height: '20px', color: 'var(--wa-green-light)' }} />
-          Payout Transaction History ({transactions.length})
+          Withdrawal Requests ({withdrawals.length})
         </h3>
 
         {loading ? (
@@ -423,16 +434,16 @@ export default function WalletScreen({
             <Loader2 style={{ width: '20px', height: '20px', animation: 'spin 1s linear infinite' }} />
             <span>Loading payout history...</span>
           </div>
-        ) : transactions.length === 0 ? (
+        ) : withdrawals.length === 0 ? (
           /* Empty State */
           <div style={{ textAlign: 'center', padding: '2rem 1rem', background: '#0b141a', borderRadius: '12px', border: '1px dashed var(--border-color)' }}>
             <p style={{ color: 'var(--text-sub)', fontSize: '0.9rem' }}>
-              No payout history yet. Submit your first withdrawal request above!
+              No withdrawal history yet. Submit your first request above!
             </p>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {transactions.map((txn) => (
+            {withdrawals.map((txn) => (
               <div 
                 key={txn.request_id}
                 style={{
@@ -484,6 +495,51 @@ export default function WalletScreen({
                   }}>
                     {txn.status === 'paid' ? '✓ Paid' : '⏳ Pending'}
                   </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Transaction Ledger */}
+      <div className="glass-panel" style={{ padding: '1.75rem' }}>
+        <h3 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <Coins style={{ width: '20px', height: '20px', color: '#fbbf24' }} />
+          Coin Transaction Ledger ({walletTx.length})
+        </h3>
+        
+        {walletTx.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '2rem 1rem', background: '#0b141a', borderRadius: '12px', border: '1px dashed var(--border-color)' }}>
+            <p style={{ color: 'var(--text-sub)', fontSize: '0.9rem' }}>
+              No coins earned or deducted yet. Complete a task to start earning!
+            </p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {walletTx.map((tx) => (
+              <div key={tx.id} style={{
+                background: '#0b141a',
+                border: '1px solid var(--border-color)',
+                borderRadius: '12px',
+                padding: '0.85rem 1.25rem',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)', textTransform: 'capitalize' }}>
+                      {tx.transaction_type.replace('_', ' ')}
+                    </span>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-sub)' }}>
+                      • {new Date(tx.created_at).toLocaleString()}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-sub)' }}>{tx.description}</div>
+                </div>
+                <div style={{ fontSize: '1.15rem', fontWeight: 800, color: tx.transaction_type === 'withdrawal' ? '#f87171' : '#fbbf24' }}>
+                  {tx.transaction_type === 'withdrawal' ? '-' : '+'}{tx.amount}
                 </div>
               </div>
             ))}
