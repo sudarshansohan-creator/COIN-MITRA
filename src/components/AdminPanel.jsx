@@ -380,8 +380,6 @@ export default function AdminPanel({ isOpen, onClose }) {
           }
         ]);
 
-      if (error) {
-        alert('Failed to update pricing settings: ' + error.message);
       if (error) throw error;
       setSuccessMsg('Pricing settings updated successfully.');
       setTimeout(() => setSuccessMsg(''), 3000);
