@@ -1,15 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { Trophy, Medal, Award, Crown, Loader } from 'lucide-react';
+import { Trophy, Medal, Award, Crown, Loader, Flame, Coins } from 'lucide-react';
 
 export default function LeaderboardScreen({ userSession }) {
+  const [activeTab, setActiveTab] = useState('earnings');
   const [leaderboard, setLeaderboard] = useState([]);
+  const [streakLeaderboard, setStreakLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchLeaderboard();
-  }, []);
+    if (activeTab === 'earnings') {
+      fetchEarningsLeaderboard();
+    } else {
+      fetchStreakLeaderboard();
+    }
+  }, [activeTab]);
 
-  const fetchLeaderboard = async () => {
+  const fetchEarningsLeaderboard = async () => {
     setLoading(true);
     try {
       const res = await fetch('https://coin-mitra.onrender.com/api/leaderboard/daily');
@@ -24,6 +30,21 @@ export default function LeaderboardScreen({ userSession }) {
     }
   };
 
+  const fetchStreakLeaderboard = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('https://coin-mitra.onrender.com/api/leaderboard/streak');
+      const data = await res.json();
+      if (data.success) {
+        setStreakLeaderboard(data.leaderboard || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch streak leaderboard:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const renderRankIcon = (rank) => {
     if (rank === 1) return <Crown size={24} style={{ color: '#F59E0B' }} />;
     if (rank === 2) return <Medal size={24} style={{ color: '#94A3B8' }} />;
@@ -31,11 +52,13 @@ export default function LeaderboardScreen({ userSession }) {
     return <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-muted)' }}>#{rank}</div>;
   };
 
+  const activeData = activeTab === 'earnings' ? leaderboard : streakLeaderboard;
+
   return (
     <div className="fade-in" style={{ padding: '1rem', maxWidth: '600px', margin: '0 auto' }}>
       
       {/* Header */}
-      <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+      <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
         <div style={{
           display: 'inline-flex',
           alignItems: 'center',
@@ -49,11 +72,37 @@ export default function LeaderboardScreen({ userSession }) {
         }}>
           <Trophy size={32} style={{ color: '#F59E0B' }} />
         </div>
-        <h1 style={{ fontSize: '1.8rem', fontWeight: 800, color: '#ffffff', marginBottom: '0.5rem' }}>Daily Leaderboard</h1>
-        <p style={{ color: 'var(--text-sub)', fontSize: '0.9rem', lineHeight: '1.5' }}>
-          Top earners of the day! Rankings reset every night.
-          <br/>The Top 3 users get huge bonus coins!
-        </p>
+        <h1 style={{ fontSize: '1.8rem', fontWeight: 800, color: '#ffffff', marginBottom: '0.5rem' }}>Hall of Fame</h1>
+      </div>
+
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '2rem', padding: '0.35rem', background: 'var(--bg-card)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+        <button
+          onClick={() => setActiveTab('earnings')}
+          style={{
+            flex: 1, padding: '0.75rem', borderRadius: '8px', border: 'none',
+            background: activeTab === 'earnings' ? 'rgba(245, 158, 11, 0.15)' : 'transparent',
+            color: activeTab === 'earnings' ? '#fbbf24' : 'var(--text-sub)',
+            fontWeight: activeTab === 'earnings' ? 700 : 500,
+            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+            transition: 'all 0.2s'
+          }}
+        >
+          <Coins size={18} /> Daily Earnings
+        </button>
+        <button
+          onClick={() => setActiveTab('streaks')}
+          style={{
+            flex: 1, padding: '0.75rem', borderRadius: '8px', border: 'none',
+            background: activeTab === 'streaks' ? 'rgba(239, 68, 68, 0.15)' : 'transparent',
+            color: activeTab === 'streaks' ? '#f87171' : 'var(--text-sub)',
+            fontWeight: activeTab === 'streaks' ? 700 : 500,
+            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+            transition: 'all 0.2s'
+          }}
+        >
+          <Flame size={18} /> Top Streaks
+        </button>
       </div>
 
       {loading ? (
@@ -61,15 +110,15 @@ export default function LeaderboardScreen({ userSession }) {
           <Loader size={32} className="spin" style={{ marginBottom: '1rem' }} />
           <span>Fetching ranks...</span>
         </div>
-      ) : leaderboard.length === 0 ? (
+      ) : activeData.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '3rem', background: 'var(--bg-card)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)' }}>
           <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>😴</div>
-          <h3 style={{ color: '#ffffff', marginBottom: '0.5rem' }}>No earnings yet!</h3>
-          <p style={{ color: 'var(--text-sub)' }}>Be the first to complete tasks today and claim the #1 spot.</p>
+          <h3 style={{ color: '#ffffff', marginBottom: '0.5rem' }}>No leaders yet!</h3>
+          <p style={{ color: 'var(--text-sub)' }}>Start completing tasks to claim the #1 spot.</p>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          {leaderboard.map((user) => {
+          {activeData.map((user) => {
             const isMe = userSession && (user.user_id === userSession.uid || user.user_id === userSession.customUserId);
             
             return (
@@ -103,10 +152,19 @@ export default function LeaderboardScreen({ userSession }) {
                 </div>
                 
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#F59E0B' }}>
-                    {user.amount}
-                  </div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-sub)', fontWeight: 600 }}>COINS</div>
+                  {activeTab === 'earnings' ? (
+                    <>
+                      <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#F59E0B' }}>{user.amount}</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-sub)', fontWeight: 600 }}>COINS</div>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.2rem' }}>
+                        {user.current_streak} <Flame size={16} />
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-sub)', fontWeight: 600 }}>DAY STREAK</div>
+                    </>
+                  )}
                 </div>
               </div>
             );

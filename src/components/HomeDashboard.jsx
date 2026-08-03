@@ -10,7 +10,8 @@ import {
   CheckCircle2, 
   ArrowUpRight,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  Flame
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import ChannelGrid from './ChannelGrid';
@@ -24,7 +25,8 @@ export default function HomeDashboard({
     coinBalance: userSession?.coinBalance || 0,
     totalTasksCompleted: userSession?.totalTasksCompleted || 0,
     isBotConnected: userSession?.isBotConnected || false,
-    referredBy: userSession?.referredBy || null
+    referredBy: userSession?.referredBy || null,
+    currentStreak: userSession?.currentStreak || 0
   });
   const [totalReferralsCount, setTotalReferralsCount] = useState(0);
   const [activeTasks, setActiveTasks] = useState([]);
@@ -52,7 +54,8 @@ export default function HomeDashboard({
             coinBalance: profile.coin_balance || 0,
             totalTasksCompleted: profile.total_tasks_completed || 0,
             isBotConnected: profile.is_bot_connected || false,
-            referredBy: profile.referred_by
+            referredBy: profile.referred_by,
+            currentStreak: profile.current_streak || 0
           });
         }
 
@@ -99,7 +102,8 @@ export default function HomeDashboard({
               ...prev,
               coinBalance: payload.new.coin_balance ?? prev.coinBalance,
               totalTasksCompleted: payload.new.total_tasks_completed ?? prev.totalTasksCompleted,
-              isBotConnected: payload.new.is_bot_connected ?? prev.isBotConnected
+              isBotConnected: payload.new.is_bot_connected ?? prev.isBotConnected,
+              currentStreak: payload.new.current_streak ?? prev.currentStreak
             }));
           }
         }
@@ -276,7 +280,7 @@ export default function HomeDashboard({
         </div>
 
         {/* Counter Cards Grid */}
-        <div style={{ display: 'grid', gridTemplateRows: '1fr 1fr', gap: '1rem' }}>
+        <div style={{ display: 'grid', gridTemplateRows: 'repeat(3, auto)', gap: '1rem' }}>
           
           {/* Total Earned Counter */}
           <div className="glass-panel" style={{ padding: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -322,7 +326,7 @@ export default function HomeDashboard({
               <div>
                 <span style={{ fontSize: '0.78rem', color: 'var(--text-sub)', display: 'block' }}>Total Real Referrals</span>
                 <span style={{ fontSize: '1.25rem', fontWeight: 800, color: '#ffffff' }}>
-                  {totalReferralsCount} Friends Joined
+                  {totalReferralsCount} Friends <span style={{ fontSize: '0.8rem', color: '#c084fc' }}>(Joined)</span>
                 </span>
               </div>
             </div>
@@ -342,6 +346,49 @@ export default function HomeDashboard({
               }}
             >
               Invite More
+            </button>
+          </div>
+
+          {/* Current Streak Counter */}
+          <div className="glass-panel" style={{ padding: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div style={{
+                width: '42px',
+                height: '42px',
+                borderRadius: '12px',
+                background: 'rgba(239, 68, 68, 0.15)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#ef4444',
+                flexShrink: 0
+              }}>
+                <Flame style={{ width: '22px', height: '22px' }} />
+              </div>
+              <div>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-sub)', display: 'block' }}>Current Streak</span>
+                <span style={{ fontSize: '1.25rem', fontWeight: 800, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                  {userData.currentStreak} Days
+                  {userData.currentStreak > 0 && <Flame size={16} color="#ef4444" />}
+                </span>
+              </div>
+            </div>
+            
+            <button
+              onClick={() => onNavigate('leaders')}
+              style={{
+                background: 'rgba(239, 68, 68, 0.15)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                color: '#ef4444',
+                padding: '0.4rem 0.65rem',
+                borderRadius: '8px',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                flexShrink: 0
+              }}
+            >
+              View Leaders
             </button>
           </div>
 

@@ -106,11 +106,41 @@ const rewardUserWalletForTask = async (userId, coinReward = 50, taskDescription 
     const newBalance = (user.coin_balance || 0) + coinReward;
     const newTasksCompleted = (user.total_tasks_completed || 0) + 1;
 
+    // --- Streak Logic ---
+    const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+    const todayStr = formatter.format(new Date());
+    
+    let currentStreak = user.current_streak || 0;
+    let longestStreak = user.longest_streak || 0;
+    let lastTaskDate = user.last_task_date;
+
+    if (lastTaskDate !== todayStr) {
+      if (!lastTaskDate) {
+        currentStreak = 1;
+      } else {
+        const yesterday = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayStr = formatter.format(yesterday);
+        
+        if (lastTaskDate === yesterdayStr) {
+          currentStreak += 1;
+        } else {
+          currentStreak = 1;
+        }
+      }
+      if (currentStreak > longestStreak) longestStreak = currentStreak;
+      lastTaskDate = todayStr;
+    }
+    // --------------------
+
     const { error: updateErr } = await supabase
       .from('users')
       .update({
         coin_balance: newBalance,
         total_tasks_completed: newTasksCompleted,
+        current_streak: currentStreak,
+        longest_streak: longestStreak,
+        last_task_date: lastTaskDate,
         updated_at: new Date().toISOString()
       })
       .eq('uid', user.uid);
@@ -1347,6 +1377,41 @@ app.get('/api/leaderboard/daily', async (req, res) => {
     res.json({ success: true, leaderboard });
   } catch (err) {
     console.error('Leaderboard error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET Streak Leaderboard
+app.get('/api/leaderboard/streak', async (req, res) => {
+  try {
+    // Fetch users ordered by current_streak then longest_streak
+    const { data: users, error } = await supabase
+      .from('users')
+      .select('uid, full_name, phone_number, current_streak, longest_streak')
+      .gt('current_streak', 0)
+      .order('current_streak', { ascending: false })
+      .order('longest_streak', { ascending: false })
+      .limit(10);
+
+    if (error) throw error;
+
+    const leaderboard = users.map((u, i) => {
+      let name = u.full_name || 'Anonymous User';
+      if (name === 'Anonymous User' && u.phone_number) {
+        name = `User ${u.phone_number.slice(-4)}`;
+      }
+      return {
+        rank: i + 1,
+        user_id: u.uid,
+        name,
+        current_streak: u.current_streak,
+        longest_streak: u.longest_streak
+      };
+    });
+
+    res.json({ success: true, leaderboard });
+  } catch (err) {
+    console.error('Streak leaderboard error:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });
