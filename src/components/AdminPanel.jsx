@@ -1,5 +1,5 @@
 // src/components/AdminPanel.jsx - Secure Admin Console with Admin Auth & Super Admin Create Admin Feature
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   X, Plus, Trash2, Shield, Radio, Database, ExternalLink, Sparkles, Check, DollarSign, Wallet, CheckCircle2, XCircle, Clock, Loader2, Save, Coins, RefreshCw, Lock, User, UserPlus, KeyRound, Eye, EyeOff, AlertCircle, LogOut, Trophy, MessageCircle, Send
 } from 'lucide-react';
@@ -38,6 +38,11 @@ export default function AdminPanel({ isOpen, onClose }) {
   const [supportMessages, setSupportMessages] = useState([]);
   const [activeSupportUser, setActiveSupportUser] = useState(null);
   const [adminReplyMsg, setAdminReplyMsg] = useState('');
+  const messagesEndRef = useRef(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [supportMessages, activeSupportUser]);
   
   // Manual Reward State
   const [manualRewardForm, setManualRewardForm] = useState({ userId: '', amount: 50, description: '' });
@@ -198,7 +203,10 @@ export default function AdminPanel({ isOpen, onClose }) {
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'support_messages' },
         (payload) => {
-          setSupportMessages((prev) => [...prev, payload.new]);
+          setSupportMessages((prev) => {
+            if (prev.some(m => m.id === payload.new.id)) return prev;
+            return [...prev, payload.new];
+          });
         }
       )
       .subscribe();
@@ -1562,9 +1570,9 @@ export default function AdminPanel({ isOpen, onClose }) {
               </div>
             )}
             {activeTab === 'support' && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', height: '600px', maxHeight: '70vh', background: '#090e11', borderRadius: '12px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+              <div style={{ display: 'flex', flexWrap: 'nowrap', gap: '1rem', height: '600px', maxHeight: '70vh', background: '#090e11', borderRadius: '12px', overflowX: 'auto', overflowY: 'hidden', border: '1px solid var(--border-color)' }}>
                 {/* Users List Sidebar */}
-                <div style={{ flex: '1 1 250px', maxWidth: '100%', borderRight: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ flex: '0 0 250px', borderRight: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column' }}>
                   <div style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)', fontWeight: 700, color: 'var(--text-main)' }}>
                     Active Chats
                   </div>
@@ -1603,7 +1611,7 @@ export default function AdminPanel({ isOpen, onClose }) {
                 </div>
 
                 {/* Chat Area */}
-                <div style={{ flex: '2 1 350px', display: 'flex', flexDirection: 'column', height: '100%' }}>
+                <div style={{ flex: '1 0 350px', display: 'flex', flexDirection: 'column', height: '100%' }}>
                   {activeSupportUser ? (
                     <>
                       <div style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)', fontWeight: 700, color: 'var(--wa-green-light)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -1639,6 +1647,7 @@ export default function AdminPanel({ isOpen, onClose }) {
                             </div>
                           );
                         })}
+                        <div ref={messagesEndRef} />
                       </div>
                       <form 
                         onSubmit={async (e) => {
