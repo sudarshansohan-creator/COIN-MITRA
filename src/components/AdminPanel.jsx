@@ -63,8 +63,8 @@ export default function AdminPanel({ isOpen, onClose }) {
   const [loading, setLoading] = useState(false);
   const [savingPricing, setSavingPricing] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
-  const [bulkApproveInput, setBulkApproveInput] = useState('');
-  const [bulkApproving, setBulkApproving] = useState(false);
+  const [bulkInputs, setBulkInputs] = useState({});
+  const [bulkApproving, setBulkApproving] = useState({});
 
   // Check saved Admin Session in SessionStorage
   useEffect(() => {
@@ -446,26 +446,28 @@ export default function AdminPanel({ isOpen, onClose }) {
     }
   };
 
-  const handleBulkApprove = async () => {
-    if (!bulkApproveInput.trim()) return;
+  const handleBulkApprove = async (taskGroup) => {
+    const inputStr = bulkInputs[taskGroup] || '';
+    if (!inputStr.trim()) return;
     
-    const phones = bulkApproveInput.split('\n').map(p => p.trim()).filter(Boolean);
+    const phones = inputStr.split('\n').map(p => p.trim()).filter(Boolean);
     if (phones.length === 0) return;
     
-    if (!window.confirm(`Are you sure you want to approve tasks for ${phones.length} numbers?`)) return;
+    if (!window.confirm(`Are you sure you want to approve tasks for ${phones.length} numbers for ${taskGroup}?`)) return;
     
-    setBulkApproving(true);
+    setBulkApproving(prev => ({ ...prev, [taskGroup]: true }));
     let successCount = 0;
     
     try {
       const matchingRequests = manualRequests.filter(req => {
+        const group = req.channel_link || 'Unknown Task';
         const phone = req.phone_number || req.user_id;
-        return phones.includes(phone);
+        return group === taskGroup && phones.includes(phone);
       });
       
       if (matchingRequests.length === 0) {
-        alert("No matching pending requests found for the provided numbers.");
-        setBulkApproving(false);
+        alert("No matching pending requests found for the provided numbers in this task.");
+        setBulkApproving(prev => ({ ...prev, [taskGroup]: false }));
         return;
       }
 
@@ -481,8 +483,8 @@ export default function AdminPanel({ isOpen, onClose }) {
         }
       }
       
-      alert(`Bulk approval complete. ${successCount} out of ${matchingRequests.length} requests approved.`);
-      setBulkApproveInput('');
+      alert(`Bulk approval complete. ${successCount} out of ${matchingRequests.length} requests approved for this task.`);
+      setBulkInputs(prev => ({ ...prev, [taskGroup]: '' }));
       
       const approvedIds = matchingRequests.map(r => r.id);
       setManualRequests(prev => prev.filter(r => !approvedIds.includes(r.id)));
@@ -491,7 +493,7 @@ export default function AdminPanel({ isOpen, onClose }) {
       console.error(err);
       alert('Error during bulk approval.');
     } finally {
-      setBulkApproving(false);
+      setBulkApproving(prev => ({ ...prev, [taskGroup]: false }));
     }
   };
 
@@ -1127,43 +1129,6 @@ export default function AdminPanel({ isOpen, onClose }) {
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#ffffff' }}>Manual Task Verification Requests</h3>
               </div>
 
-              {/* Bulk Approve Section */}
-              <div style={{ background: 'rgba(0,230,118,0.05)', padding: '1rem', borderRadius: '10px', border: '1px solid rgba(0,230,118,0.2)', marginBottom: '1.5rem' }}>
-                <h4 style={{ color: 'var(--wa-green-light)', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Bulk Approve (Paste Phone Numbers)</h4>
-                <p style={{ color: 'var(--text-sub)', fontSize: '0.75rem', marginBottom: '0.75rem' }}>
-                  Paste a list of phone numbers (one per line). All pending requests for these numbers will be automatically approved.
-                </p>
-                <textarea
-                  value={bulkApproveInput}
-                  onChange={(e) => setBulkApproveInput(e.target.value)}
-                  placeholder="e.g. 9876543210\n9123456789"
-                  style={{ width: '100%', height: '100px', background: '#000', color: '#fff', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.5rem', fontSize: '0.8rem', fontFamily: 'monospace', resize: 'vertical', marginBottom: '0.75rem' }}
-                />
-                <button
-                  onClick={handleBulkApprove}
-                  disabled={bulkApproving || !bulkApproveInput.trim()}
-                  style={{
-                    background: bulkApproving || !bulkApproveInput.trim() ? '#444' : '#00e676',
-                    color: bulkApproving || !bulkApproveInput.trim() ? '#888' : '#000',
-                    border: 'none',
-                    padding: '0.5rem 1rem',
-                    borderRadius: '8px',
-                    fontWeight: 700,
-                    cursor: bulkApproving || !bulkApproveInput.trim() ? 'not-allowed' : 'pointer',
-                    fontSize: '0.8rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem'
-                  }}
-                >
-                  {bulkApproving ? (
-                    <>Processing...</>
-                  ) : (
-                    <><CheckCircle2 size={16} /> Bulk Approve matching numbers</>
-                  )}
-                </button>
-              </div>
-              
               <div style={{ overflowX: 'auto' }}>
                 {manualRequests.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-sub)' }}>No pending requests found.</div>
@@ -1178,6 +1143,44 @@ export default function AdminPanel({ isOpen, onClose }) {
                       <h4 style={{ color: 'var(--wa-green-light)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                          <CheckCircle2 size={16} /> <a href={taskGroup} target="_blank" rel="noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>{taskGroup}</a> <span style={{ background: 'var(--wa-green-light)', color: '#000', padding: '0.1rem 0.5rem', borderRadius: '12px', fontSize: '0.7rem', fontWeight: 800 }}>{groupRequests.length} Pending</span>
                       </h4>
+                      
+                      {/* Bulk Approve Section For This Group */}
+                      <div style={{ background: 'rgba(0,230,118,0.05)', padding: '1rem', borderRadius: '10px', border: '1px solid rgba(0,230,118,0.2)', marginBottom: '1.5rem' }}>
+                        <h4 style={{ color: 'var(--wa-green-light)', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Bulk Approve (Paste Phone Numbers)</h4>
+                        <p style={{ color: 'var(--text-sub)', fontSize: '0.75rem', marginBottom: '0.75rem' }}>
+                          Paste a list of phone numbers (one per line). All pending requests for these numbers will be automatically approved.
+                        </p>
+                        <textarea
+                          value={bulkInputs[taskGroup] || ''}
+                          onChange={(e) => setBulkInputs(prev => ({ ...prev, [taskGroup]: e.target.value }))}
+                          placeholder="e.g. 9876543210\n9123456789"
+                          style={{ width: '100%', height: '80px', background: '#000', color: '#fff', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.5rem', fontSize: '0.8rem', fontFamily: 'monospace', resize: 'vertical', marginBottom: '0.75rem' }}
+                        />
+                        <button
+                          onClick={() => handleBulkApprove(taskGroup)}
+                          disabled={bulkApproving[taskGroup] || !(bulkInputs[taskGroup] || '').trim()}
+                          style={{
+                            background: bulkApproving[taskGroup] || !(bulkInputs[taskGroup] || '').trim() ? '#444' : '#00e676',
+                            color: bulkApproving[taskGroup] || !(bulkInputs[taskGroup] || '').trim() ? '#888' : '#000',
+                            border: 'none',
+                            padding: '0.5rem 1rem',
+                            borderRadius: '8px',
+                            fontWeight: 700,
+                            cursor: bulkApproving[taskGroup] || !(bulkInputs[taskGroup] || '').trim() ? 'not-allowed' : 'pointer',
+                            fontSize: '0.8rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem'
+                          }}
+                        >
+                          {bulkApproving[taskGroup] ? (
+                            <>Processing...</>
+                          ) : (
+                            <><CheckCircle2 size={16} /> Bulk Approve matching numbers</>
+                          )}
+                        </button>
+                      </div>
+
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                         <thead>
                           <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-sub)', textAlign: 'left' }}>
