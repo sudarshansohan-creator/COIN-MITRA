@@ -138,14 +138,26 @@ export default function AdminPanel({ isOpen, onClose }) {
           
           if (reqs.length > 0) {
             const userIds = [...new Set(reqs.map(r => r.user_id))];
-            const { data: usersData } = await supabase
-              .from('users')
-              .select('uid, custom_user_id, phone_number')
-              .or(`uid.in.(${userIds.map(id => `"${id}"`).join(',')}),custom_user_id.in.(${userIds.map(id => `"${id}"`).join(',')})`);
+            
+            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+            const uuids = userIds.filter(id => uuidRegex.test(id));
+            const customIds = userIds.filter(id => !uuidRegex.test(id));
+
+            let allUsersData = [];
+
+            if (uuids.length > 0) {
+              const { data: uData } = await supabase.from('users').select('uid, custom_user_id, phone_number').in('uid', uuids);
+              if (uData) allUsersData = [...allUsersData, ...uData];
+            }
+
+            if (customIds.length > 0) {
+              const { data: cData } = await supabase.from('users').select('uid, custom_user_id, phone_number').in('custom_user_id', customIds);
+              if (cData) allUsersData = [...allUsersData, ...cData];
+            }
               
-            if (usersData) {
+            if (allUsersData.length > 0) {
               mappedReqs = reqs.map(req => {
-                const user = usersData.find(u => u.uid === req.user_id || u.custom_user_id === req.user_id);
+                const user = allUsersData.find(u => u.uid === req.user_id || u.custom_user_id === req.user_id);
                 return {
                   ...req,
                   phone_number: user?.phone_number || req.user_id
