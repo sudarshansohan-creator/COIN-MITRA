@@ -23,6 +23,30 @@ export default function InviteEarnScreen({ userSession }) {
   const [referredFriends, setReferredFriends] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Dynamic Pricing State
+  const [referralBonus, setReferralBonus] = useState(200);
+  const [coinsPerRupee, setCoinsPerRupee] = useState(20);
+
+  // Fetch Pricing settings from Supabase
+  useEffect(() => {
+    const fetchPricing = async () => {
+      try {
+        const { data } = await supabase
+          .from('platform_settings')
+          .select('referral_bonus_referrer, coins_per_rupee')
+          .eq('id', 1)
+          .maybeSingle();
+        if (data) {
+          if (data.referral_bonus_referrer) setReferralBonus(data.referral_bonus_referrer);
+          if (data.coins_per_rupee) setCoinsPerRupee(data.coins_per_rupee);
+        }
+      } catch (err) {
+        console.error('Fetch pricing error:', err);
+      }
+    };
+    fetchPricing();
+  }, []);
+
   // Fetch & Realtime Listen for Referred Friends from Supabase `users` table
   useEffect(() => {
     if (!referralCode) {
@@ -74,8 +98,8 @@ export default function InviteEarnScreen({ userSession }) {
 
   const handleShareWhatsApp = () => {
     const text = encodeURIComponent(
-      `🎁 Join CoinMitra WhatsApp Bot & Earn ₹100 Daily auto-following channels!\n\n` +
-      `Use my User ID / Referral code *${referralCode}* or link below to claim 100 free bonus coins:\n` +
+      `🎁 Join CoinMitra WhatsApp Bot & Earn ₹${(referralBonus / coinsPerRupee).toFixed(0)} Daily auto-following channels!\n\n` +
+      `Use my User ID / Referral code *${referralCode}* or link below to claim free bonus coins:\n` +
       `${referralLink}`
     );
     window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
@@ -97,9 +121,9 @@ export default function InviteEarnScreen({ userSession }) {
               <Gift style={{ width: '16px', height: '16px' }} />
               <span>UNLIMITED REFERRAL BONUSES</span>
             </div>
-            <h1 style={{ fontSize: '1.65rem', fontWeight: 800 }}>Invite Friends & Earn 200 Coins Each</h1>
+            <h1 style={{ fontSize: '1.65rem', fontWeight: 800 }}>Invite Friends & Earn {referralBonus} Coins Each</h1>
             <p style={{ color: 'var(--text-sub)', fontSize: '0.9rem', marginTop: '0.25rem' }}>
-              Earn 200 Coins (₹10) when your invited friend completes 10 channel auto-follow tasks!
+              Earn {referralBonus} Coins (₹{(referralBonus / coinsPerRupee).toFixed(0)}) when your invited friend completes 10 channel auto-follow tasks!
             </p>
           </div>
 
