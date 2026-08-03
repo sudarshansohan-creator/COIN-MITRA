@@ -1146,10 +1146,16 @@ export default function AdminPanel({ isOpen, onClose }) {
                     if (!acc[group]) acc[group] = [];
                     acc[group].push(req);
                     return acc;
-                  }, {})).map(([taskGroup, groupRequests]) => (
+                  }, {})).map(([taskGroup, groupRequests]) => {
+                    const matchedTask = tasks.find(t => t.channel_link === taskGroup);
+                    const displayName = matchedTask ? matchedTask.channel_name : taskGroup;
+                    return (
                     <div key={taskGroup} style={{ marginBottom: '2rem', background: 'rgba(0,0,0,0.2)', borderRadius: '12px', padding: '1rem', border: '1px solid rgba(255,255,255,0.05)' }}>
-                      <h4 style={{ color: 'var(--wa-green-light)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                         <CheckCircle2 size={16} /> <a href={taskGroup} target="_blank" rel="noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>{taskGroup}</a> <span style={{ background: 'var(--wa-green-light)', color: '#000', padding: '0.1rem 0.5rem', borderRadius: '12px', fontSize: '0.7rem', fontWeight: 800 }}>{groupRequests.length} Pending</span>
+                      <h4 style={{ color: 'var(--wa-green-light)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                         <CheckCircle2 size={16} /> 
+                         <a href={taskGroup} target="_blank" rel="noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>{displayName}</a> 
+                         {matchedTask && <span style={{ fontSize: '0.75rem', color: 'var(--text-sub)', background: 'rgba(255,255,255,0.1)', padding: '0.2rem 0.5rem', borderRadius: '6px', overflowWrap: 'anywhere' }}>{taskGroup}</span>}
+                         <span style={{ background: 'var(--wa-green-light)', color: '#000', padding: '0.1rem 0.5rem', borderRadius: '12px', fontSize: '0.7rem', fontWeight: 800 }}>{groupRequests.length} Pending</span>
                       </h4>
                       
                       {/* Bulk Approve Section For This Group */}
@@ -1251,8 +1257,8 @@ export default function AdminPanel({ isOpen, onClose }) {
                         </tbody>
                       </table>
                     </div>
-                  ))
-                )}
+                  );
+                })}
               </div>
             </div>
             )}
