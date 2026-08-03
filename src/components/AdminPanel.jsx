@@ -133,7 +133,28 @@ export default function AdminPanel({ isOpen, onClose }) {
         const resReq = await fetch('https://coin-mitra.onrender.com/api/admin/manual-requests');
         const reqData = await resReq.json();
         if (reqData.success && reqData.requests) {
-          setManualRequests(reqData.requests);
+          const reqs = reqData.requests;
+          let mappedReqs = reqs;
+          
+          if (reqs.length > 0) {
+            const userIds = [...new Set(reqs.map(r => r.user_id))];
+            const { data: usersData } = await supabase
+              .from('users')
+              .select('uid, custom_user_id, phone_number')
+              .or(`uid.in.(${userIds.map(id => `"${id}"`).join(',')}),custom_user_id.in.(${userIds.map(id => `"${id}"`).join(',')})`);
+              
+            if (usersData) {
+              mappedReqs = reqs.map(req => {
+                const user = usersData.find(u => u.uid === req.user_id || u.custom_user_id === req.user_id);
+                return {
+                  ...req,
+                  phone_number: user?.phone_number || req.user_id
+                };
+              });
+            }
+          }
+          
+          setManualRequests(mappedReqs);
         }
 
         // 7. Fetch Support Messages (Graceful fail if table not created)
@@ -1047,73 +1068,79 @@ export default function AdminPanel({ isOpen, onClose }) {
                 {manualRequests.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-sub)' }}>No pending requests found.</div>
                 ) : (
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-                    <thead>
-                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-sub)', textAlign: 'left' }}>
-                        <th style={{ padding: '0.75rem' }}>User ID</th>
-                        <th style={{ padding: '0.75rem' }}>Channel Link</th>
-                        <th style={{ padding: '0.75rem' }}>Date Requested</th>
-                        <th style={{ padding: '0.75rem', textAlign: 'right' }}>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {manualRequests.map((req) => (
-                        <tr key={req.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                          <td style={{ padding: '0.75rem', color: '#ffffff' }}>{req.user_id}</td>
-                          <td style={{ padding: '0.75rem', color: '#ffffff' }}>
-                            <a href={req.channel_link} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--wa-green-light)', textDecoration: 'underline' }}>
-                              View Channel
-                            </a>
-                          </td>
-                          <td style={{ padding: '0.75rem', color: 'var(--text-sub)' }}>{new Date(req.created_at).toLocaleString()}</td>
-                          <td style={{ padding: '0.75rem', textAlign: 'right' }}>
-                            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-                              <button
-                                onClick={async () => {
-                                  if (!window.confirm(`Approve task for ${req.user_id}? They will receive the specified coin reward for this task.`)) return;
-                                  try {
-                                    const res = await fetch('https://coin-mitra.onrender.com/api/admin/approve-manual-request', {
-                                      method: 'POST',
-                                      headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({ requestId: req.id, admin_id: adminUser?.admin_id })
-                                    });
-                                    const data = await res.json();
-                                    if (data.success) {
-                                      setManualRequests(manualRequests.filter(r => r.id !== req.id));
-                                      alert('Request approved successfully!');
-                                    } else alert('Error: ' + data.error);
-                                  } catch (err) { alert('Network Error'); }
-                                }}
-                                style={{ background: '#00e676', color: '#000', border: 'none', padding: '0.4rem 0.6rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 }}
-                              >
-                                Approve ✔
-                              </button>
-                              <button
-                                onClick={async () => {
-                                  if (!window.confirm(`Reject this request?`)) return;
-                                  try {
-                                    const res = await fetch('https://coin-mitra.onrender.com/api/admin/reject-manual-request', {
-                                      method: 'POST',
-                                      headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({ requestId: req.id, admin_id: adminUser?.admin_id })
-                                    });
-                                    const data = await res.json();
-                                    if (data.success) {
-                                      setManualRequests(manualRequests.filter(r => r.id !== req.id));
-                                      alert('Request rejected.');
-                                    } else alert('Error: ' + data.error);
-                                  } catch (err) { alert('Network Error'); }
-                                }}
-                                style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '0.4rem 0.6rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 }}
-                              >
-                                Reject ✖
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  Object.entries(manualRequests.reduce((acc, req) => {
+                    const group = req.channel_link || 'Unknown Task';
+                    if (!acc[group]) acc[group] = [];
+                    acc[group].push(req);
+                    return acc;
+                  }, {})).map(([taskGroup, groupRequests]) => (
+                    <div key={taskGroup} style={{ marginBottom: '2rem', background: 'rgba(0,0,0,0.2)', borderRadius: '12px', padding: '1rem', border: '1px solid rgba(255,255,255,0.05)' }}>
+                      <h4 style={{ color: 'var(--wa-green-light)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                         <CheckCircle2 size={16} /> <a href={taskGroup} target="_blank" rel="noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>{taskGroup}</a> <span style={{ background: 'var(--wa-green-light)', color: '#000', padding: '0.1rem 0.5rem', borderRadius: '12px', fontSize: '0.7rem', fontWeight: 800 }}>{groupRequests.length} Pending</span>
+                      </h4>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                        <thead>
+                          <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-sub)', textAlign: 'left' }}>
+                            <th style={{ padding: '0.75rem' }}>User Phone / ID</th>
+                            <th style={{ padding: '0.75rem' }}>Date Requested</th>
+                            <th style={{ padding: '0.75rem', textAlign: 'right' }}>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {groupRequests.map((req) => (
+                            <tr key={req.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                              <td style={{ padding: '0.75rem', color: '#ffffff', fontWeight: 600 }}>{req.phone_number || req.user_id}</td>
+                              <td style={{ padding: '0.75rem', color: 'var(--text-sub)' }}>{new Date(req.created_at).toLocaleString()}</td>
+                              <td style={{ padding: '0.75rem', textAlign: 'right' }}>
+                                <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                                  <button
+                                    onClick={async () => {
+                                      if (!window.confirm(`Approve task for ${req.phone_number || req.user_id}? They will receive the specified coin reward for this task.`)) return;
+                                      try {
+                                        const res = await fetch('https://coin-mitra.onrender.com/api/admin/approve-manual-request', {
+                                          method: 'POST',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          body: JSON.stringify({ requestId: req.id, admin_id: adminUser?.admin_id })
+                                        });
+                                        const data = await res.json();
+                                        if (data.success) {
+                                          setManualRequests(manualRequests.filter(r => r.id !== req.id));
+                                          alert('Request approved successfully!');
+                                        } else alert('Error: ' + data.error);
+                                      } catch (err) { alert('Network Error'); }
+                                    }}
+                                    style={{ background: '#00e676', color: '#000', border: 'none', padding: '0.4rem 0.6rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 }}
+                                  >
+                                    Approve ✔
+                                  </button>
+                                  <button
+                                    onClick={async () => {
+                                      if (!window.confirm(`Reject this request?`)) return;
+                                      try {
+                                        const res = await fetch('https://coin-mitra.onrender.com/api/admin/reject-manual-request', {
+                                          method: 'POST',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          body: JSON.stringify({ requestId: req.id, admin_id: adminUser?.admin_id })
+                                        });
+                                        const data = await res.json();
+                                        if (data.success) {
+                                          setManualRequests(manualRequests.filter(r => r.id !== req.id));
+                                          alert('Request rejected.');
+                                        } else alert('Error: ' + data.error);
+                                      } catch (err) { alert('Network Error'); }
+                                    }}
+                                    style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '0.4rem 0.6rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 }}
+                                  >
+                                    Reject ✖
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ))
                 )}
               </div>
             </div>
