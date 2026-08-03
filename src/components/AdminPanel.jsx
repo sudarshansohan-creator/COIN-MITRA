@@ -63,6 +63,8 @@ export default function AdminPanel({ isOpen, onClose }) {
   const [loading, setLoading] = useState(false);
   const [savingPricing, setSavingPricing] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
+  const [bulkApproveInput, setBulkApproveInput] = useState('');
+  const [bulkApproving, setBulkApproving] = useState(false);
 
   // Check saved Admin Session in SessionStorage
   useEffect(() => {
@@ -441,6 +443,55 @@ export default function AdminPanel({ isOpen, onClose }) {
     } catch (err) {
       console.error(err);
       alert("Error connecting to server.");
+    }
+  };
+
+  const handleBulkApprove = async () => {
+    if (!bulkApproveInput.trim()) return;
+    
+    const phones = bulkApproveInput.split('\n').map(p => p.trim()).filter(Boolean);
+    if (phones.length === 0) return;
+    
+    if (!window.confirm(`Are you sure you want to approve tasks for ${phones.length} numbers?`)) return;
+    
+    setBulkApproving(true);
+    let successCount = 0;
+    
+    try {
+      const matchingRequests = manualRequests.filter(req => {
+        const phone = req.phone_number || req.user_id;
+        return phones.includes(phone);
+      });
+      
+      if (matchingRequests.length === 0) {
+        alert("No matching pending requests found for the provided numbers.");
+        setBulkApproving(false);
+        return;
+      }
+
+      for (const req of matchingRequests) {
+        const res = await fetch('https://coin-mitra.onrender.com/api/admin/approve-manual-request', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ requestId: req.id, admin_id: adminUser?.admin_id })
+        });
+        const data = await res.json();
+        if (data.success) {
+          successCount++;
+        }
+      }
+      
+      alert(`Bulk approval complete. ${successCount} out of ${matchingRequests.length} requests approved.`);
+      setBulkApproveInput('');
+      
+      const approvedIds = matchingRequests.map(r => r.id);
+      setManualRequests(prev => prev.filter(r => !approvedIds.includes(r.id)));
+      
+    } catch (err) {
+      console.error(err);
+      alert('Error during bulk approval.');
+    } finally {
+      setBulkApproving(false);
     }
   };
 
@@ -1074,6 +1125,43 @@ export default function AdminPanel({ isOpen, onClose }) {
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem' }}>
                 <CheckCircle2 size={18} color="#fbbf24" />
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#ffffff' }}>Manual Task Verification Requests</h3>
+              </div>
+
+              {/* Bulk Approve Section */}
+              <div style={{ background: 'rgba(0,230,118,0.05)', padding: '1rem', borderRadius: '10px', border: '1px solid rgba(0,230,118,0.2)', marginBottom: '1.5rem' }}>
+                <h4 style={{ color: 'var(--wa-green-light)', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Bulk Approve (Paste Phone Numbers)</h4>
+                <p style={{ color: 'var(--text-sub)', fontSize: '0.75rem', marginBottom: '0.75rem' }}>
+                  Paste a list of phone numbers (one per line). All pending requests for these numbers will be automatically approved.
+                </p>
+                <textarea
+                  value={bulkApproveInput}
+                  onChange={(e) => setBulkApproveInput(e.target.value)}
+                  placeholder="e.g. 9876543210\n9123456789"
+                  style={{ width: '100%', height: '100px', background: '#000', color: '#fff', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.5rem', fontSize: '0.8rem', fontFamily: 'monospace', resize: 'vertical', marginBottom: '0.75rem' }}
+                />
+                <button
+                  onClick={handleBulkApprove}
+                  disabled={bulkApproving || !bulkApproveInput.trim()}
+                  style={{
+                    background: bulkApproving || !bulkApproveInput.trim() ? '#444' : '#00e676',
+                    color: bulkApproving || !bulkApproveInput.trim() ? '#888' : '#000',
+                    border: 'none',
+                    padding: '0.5rem 1rem',
+                    borderRadius: '8px',
+                    fontWeight: 700,
+                    cursor: bulkApproving || !bulkApproveInput.trim() ? 'not-allowed' : 'pointer',
+                    fontSize: '0.8rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem'
+                  }}
+                >
+                  {bulkApproving ? (
+                    <>Processing...</>
+                  ) : (
+                    <><CheckCircle2 size={16} /> Bulk Approve matching numbers</>
+                  )}
+                </button>
               </div>
               
               <div style={{ overflowX: 'auto' }}>
