@@ -191,3 +191,16 @@ CREATE INDEX IF NOT EXISTS idx_ad_link_clicks_user ON public.ad_link_clicks(user
 ALTER TABLE public.ad_link_clicks ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow public access ad clicks" ON public.ad_link_clicks FOR ALL USING (true);
 ALTER PUBLICATION supabase_realtime ADD TABLE public.ad_link_clicks;
+
+-- ==============================================================================
+-- 8. AD TASK ADVANCED LIMITS & LOCKS
+-- ==============================================================================
+-- 1. Change coin columns to NUMERIC so they can store 0.25
+ALTER TABLE public.users ALTER COLUMN coin_balance TYPE NUMERIC(10, 2);
+ALTER TABLE public.wallet_transactions ALTER COLUMN amount TYPE NUMERIC(10, 2);
+ALTER TABLE public.ad_link_clicks ALTER COLUMN coins_awarded TYPE NUMERIC(10, 2);
+
+-- 2. Add columns for tracking Ad Watch Limits and Locks
+ALTER TABLE public.users 
+  ADD COLUMN IF NOT EXISTS ad_watch_count INTEGER DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS ad_locked_until TIMESTAMPTZ DEFAULT NULL;

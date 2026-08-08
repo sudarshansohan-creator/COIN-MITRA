@@ -1274,8 +1274,30 @@ app.post('/api/admin/reject-manual-request', async (req, res) => {
 });
 
 // ==========================================
-// AD TASK VERIFICATION API
+// AD TASK VERIFICATION API (With Limits & Locks)
 // ==========================================
+app.get('/api/ad-status/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const cleanPhone = userId.replace(/\D/g, '');
+    let query = supabase.from('users').select('ad_watch_count, ad_locked_until');
+    
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
+    let orConditions = [`custom_user_id.eq.${userId}`];
+    if (isUUID) orConditions.push(`uid.eq.${userId}`);
+    if (cleanPhone && cleanPhone.length >= 10) orConditions.push(`phone_number.ilike.%${cleanPhone.slice(-10)}%`);
+    
+    query = query.or(orConditions.join(','));
+    const { data: user, error } = await query.maybeSingle();
+
+    if (error || !user) return res.status(404).json({ success: false, error: 'User not found' });
+    
+    res.json({ success: true, adWatchCount: user.ad_watch_count || 0, adLockedUntil: user.ad_locked_until });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.post('/api/verify-ad-click', async (req, res) => {
   try {
     const { userId, targetLink } = req.body;
@@ -1283,17 +1305,54 @@ app.post('/api/verify-ad-click', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Missing userId or targetLink.' });
     }
 
-    // 1. Reward the user (1 coin for this specific ad task)
-    await rewardUserWalletForTask(userId, 1, `Ad Link Visit Bonus: ${targetLink}`, null);
+    // Identify user
+    const cleanPhone = userId.replace(/\D/g, '');
+    let query = supabase.from('users').select('uid, ad_watch_count, ad_locked_until');
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
+    let orConditions = [`custom_user_id.eq.${userId}`];
+    if (isUUID) orConditions.push(`uid.eq.${userId}`);
+    if (cleanPhone && cleanPhone.length >= 10) orConditions.push(`phone_number.ilike.%${cleanPhone.slice(-10)}%`);
+    
+    const { data: user, error: fetchErr } = await query.or(orConditions.join(',')).maybeSingle();
+    if (fetchErr || !user) return res.status(404).json({ success: false, error: 'User not found.' });
+
+    // Check if currently locked
+    if (user.ad_locked_until && new Date(user.ad_locked_until) > new Date()) {
+      return res.status(403).json({ success: false, error: 'Ad tasks are locked for 15 minutes.' });
+    }
+
+    // Calculate new state
+    let newCount = (user.ad_watch_count || 0) + 1;
+    let newLock = null;
+
+    if (newCount >= 10) {
+      newCount = 0;
+      // Set lock for 15 minutes from now
+      newLock = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+    }
+
+    // 1. Reward the user (0.25 coin for this specific ad task)
+    await rewardUserWalletForTask(userId, 0.25, `Ad Link Visit Bonus: ${targetLink}`, null);
 
     // 2. Track the click in ad_link_clicks table
     await supabase.from('ad_link_clicks').insert([{
       user_id: userId,
       target_link: targetLink,
-      coins_awarded: 1
+      coins_awarded: 0.25
     }]);
 
-    res.json({ success: true, message: 'Verified! +1 Coin added to your wallet.' });
+    // 3. Update user ad stats
+    await supabase.from('users').update({
+      ad_watch_count: newCount,
+      ad_locked_until: newLock
+    }).eq('uid', user.uid);
+
+    res.json({ 
+      success: true, 
+      message: 'Verified! +0.25 Coin added to your wallet.',
+      adWatchCount: newCount,
+      adLockedUntil: newLock
+    });
   } catch (error) {
     console.error('Verify ad click error:', error);
     res.status(500).json({ success: false, error: error.message });

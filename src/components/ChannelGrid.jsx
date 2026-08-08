@@ -33,6 +33,9 @@ export default function ChannelGrid({
   // Ad Task State
   const [adClickTime, setAdClickTime] = useState(null);
   const [isAdVerifying, setIsAdVerifying] = useState(false);
+  const [adWatchCount, setAdWatchCount] = useState(0);
+  const [adLockedUntil, setAdLockedUntil] = useState(null);
+  const [adWaitRemaining, setAdWaitRemaining] = useState(0); // For 1-3s gap and lock countdown
   
   // Mode State: 'auto' | 'manual'
   const [taskMode, setTaskMode] = useState('manual');
@@ -67,10 +70,20 @@ export default function ChannelGrid({
             });
             const data = await res.json();
             if (data.success) {
-              showToast('🎉 Awesome! +1 Coin added to your wallet for visiting the ad!');
+              showToast('🎉 Awesome! +0.25 Coin added to your wallet for visiting the ad!');
+              setAdWatchCount(data.adWatchCount || 0);
+              setAdLockedUntil(data.adLockedUntil || null);
+              
               if (typeof onRefreshProfile === 'function') {
                 onRefreshProfile();
               }
+              
+              // Only apply 1-3s gap if NOT locked
+              if (!data.adLockedUntil) {
+                const randomGap = Math.floor(Math.random() * 3) + 1; // 1 to 3 seconds
+                setAdWaitRemaining(randomGap);
+              }
+
             } else {
               alert(data.error || 'Failed to verify ad visit.');
             }
@@ -91,9 +104,39 @@ export default function ChannelGrid({
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [adClickTime, userId, onRefreshProfile]);
 
+  // Handle countdown timer for gaps and locks
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (adLockedUntil) {
+        const lockTime = new Date(adLockedUntil).getTime();
+        const diff = Math.max(0, Math.floor((lockTime - Date.now()) / 1000));
+        setAdWaitRemaining(diff);
+        if (diff === 0) setAdLockedUntil(null); // Auto unlock
+      } else if (adWaitRemaining > 0) {
+        setAdWaitRemaining(prev => prev - 1);
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [adLockedUntil, adWaitRemaining]);
+
   // 1. Fetch User Task Mode and Task Completions
   useEffect(() => {
     if (!userId) return;
+
+    // Fetch Ad Status
+    const fetchAdStatus = async () => {
+      try {
+        const res = await fetch(`https://coin-mitra.onrender.com/api/ad-status/${userId}`);
+        const data = await res.json();
+        if (data.success) {
+          setAdWatchCount(data.adWatchCount || 0);
+          setAdLockedUntil(data.adLockedUntil || null);
+        }
+      } catch (err) {
+        console.error('Failed to fetch ad status:', err);
+      }
+    };
+    fetchAdStatus();
 
     // Fetch Mode
     const fetchModeAndCompletions = async () => {
@@ -429,11 +472,16 @@ export default function ChannelGrid({
           </div>
           <div>
             <h4 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              Bonus Ad Task 🎁 <span style={{ fontSize: '0.75rem', background: '#fbbf24', color: '#000', padding: '0.15rem 0.4rem', borderRadius: '4px', fontWeight: 800 }}>+1 Coin</span>
+              Bonus Ad Task 🎁 <span style={{ fontSize: '0.75rem', background: '#fbbf24', color: '#000', padding: '0.15rem 0.4rem', borderRadius: '4px', fontWeight: 800 }}>+0.25 Coin</span>
             </h4>
-            <p style={{ color: 'var(--text-sub)', fontSize: '0.82rem', marginTop: '0.2rem' }}>
+            <p style={{ color: 'var(--text-sub)', fontSize: '0.82rem', marginTop: '0.2rem', marginBottom: '0.4rem' }}>
               Click the link and stay on the page for <strong style={{ color: '#fbbf24' }}>at least 5 seconds</strong> to claim your reward!
             </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span style={{ fontSize: '0.75rem', background: 'rgba(255, 255, 255, 0.1)', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>
+                Ads Watched: <strong style={{ color: '#fbbf24' }}>{adWatchCount}/10</strong>
+              </span>
+            </div>
           </div>
         </div>
 
@@ -443,11 +491,11 @@ export default function ChannelGrid({
               alert('Please log in first.');
               return;
             }
-            if (isAdVerifying) return;
+            if (isAdVerifying || adLockedUntil || adWaitRemaining > 0) return;
             setAdClickTime(Date.now());
             window.open('https://omg10.com/4/11530711', '_blank');
           }}
-          disabled={isAdVerifying}
+          disabled={isAdVerifying || !!adLockedUntil || adWaitRemaining > 0}
           className="btn-gold"
           style={{
             padding: '0.6rem 1.25rem',
@@ -455,12 +503,16 @@ export default function ChannelGrid({
             display: 'flex',
             alignItems: 'center',
             gap: '0.4rem',
-            opacity: isAdVerifying ? 0.7 : 1,
-            cursor: isAdVerifying ? 'wait' : 'pointer'
+            opacity: (isAdVerifying || adLockedUntil || adWaitRemaining > 0) ? 0.6 : 1,
+            cursor: (isAdVerifying || adLockedUntil || adWaitRemaining > 0) ? 'not-allowed' : 'pointer'
           }}
         >
           {isAdVerifying ? (
             <><RefreshCw size={16} style={{ animation: 'spin 1s linear infinite' }} /> Verifying...</>
+          ) : adLockedUntil ? (
+            <><Clock size={16} /> Locked ({Math.floor(adWaitRemaining / 60)}:{(adWaitRemaining % 60).toString().padStart(2, '0')})</>
+          ) : adWaitRemaining > 0 ? (
+            <><Clock size={16} /> Wait {adWaitRemaining}s...</>
           ) : (
             <><ExternalLink size={16} /> Visit Ad Link</>
           )}
