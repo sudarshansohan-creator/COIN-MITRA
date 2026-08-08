@@ -40,6 +40,13 @@ export default function AdminPanel({ isOpen, onClose }) {
   const [adminReplyMsg, setAdminReplyMsg] = useState('');
   const messagesEndRef = useRef(null);
 
+  // User Details Modal State
+  const [showUserDetailsModal, setShowUserDetailsModal] = useState(false);
+  const [selectedWithdrawalUser, setSelectedWithdrawalUser] = useState(null);
+  const [userTransactions, setUserTransactions] = useState([]);
+  const [userReferredList, setUserReferredList] = useState([]);
+  const [loadingDetails, setLoadingDetails] = useState(false);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [supportMessages, activeSupportUser]);
@@ -535,6 +542,47 @@ export default function AdminPanel({ isOpen, onClose }) {
       }
     } catch (err) {
       console.error('Update withdrawal status error:', err);
+    }
+  };
+
+  const handleViewUserDetails = async (w) => {
+    setLoadingDetails(true);
+    setShowUserDetailsModal(true);
+    try {
+      const { data: userProfile } = await supabase
+        .from('users')
+        .select('*')
+        .eq('uid', w.user_id)
+        .single();
+        
+      if (!userProfile) {
+        alert("User not found!");
+        setLoadingDetails(false);
+        return;
+      }
+
+      setSelectedWithdrawalUser(userProfile);
+
+      const { data: txData } = await supabase
+        .from('wallet_transactions')
+        .select('*')
+        .or(`user_id.eq.${userProfile.uid},user_id.eq.${userProfile.custom_user_id}`)
+        .order('created_at', { ascending: false });
+
+      setUserTransactions(txData || []);
+
+      const { data: referredUsersData } = await supabase
+        .from('users')
+        .select('phone_number, created_at')
+        .or(`referred_by.eq.${userProfile.referral_code},referred_by.eq.${userProfile.custom_user_id},referred_by.eq.${userProfile.uid}`);
+
+      setUserReferredList(referredUsersData || []);
+
+    } catch (err) {
+      console.error("Error fetching user details", err);
+      alert("Error fetching user details");
+    } finally {
+      setLoadingDetails(false);
     }
   };
 
@@ -1094,6 +1142,13 @@ export default function AdminPanel({ isOpen, onClose }) {
                       </div>
 
                       <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button
+                          onClick={() => handleViewUserDetails(w)}
+                          className="btn-secondary"
+                          style={{ padding: '0.4rem 0.75rem', fontSize: '0.78rem' }}
+                        >
+                          <Eye size={14} /> View Details
+                        </button>
                         {w.status !== 'paid' && (
                           <button
                             onClick={() => handleUpdateWithdrawalStatus(w, 'paid')}
@@ -1258,7 +1313,7 @@ export default function AdminPanel({ isOpen, onClose }) {
                       </table>
                     </div>
                   );
-                })}
+                }))}
               </div>
             </div>
             )}
@@ -1717,6 +1772,62 @@ export default function AdminPanel({ isOpen, onClose }) {
           </>
         )}
 
+        {/* User Details Modal */}
+        {showUserDetailsModal && (
+          <div className="modal-overlay" style={{ zIndex: 1000 }} onClick={(e) => e.target === e.currentTarget && setShowUserDetailsModal(false)}>
+            <div className="modal-content" style={{ maxWidth: '600px', width: '100%', maxHeight: '80vh', overflowY: 'auto' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                <h3 style={{ color: '#fff', fontSize: '1.2rem', fontWeight: 'bold' }}>User Details</h3>
+                <button onClick={() => setShowUserDetailsModal(false)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}><X size={20} /></button>
+              </div>
+              
+              {loadingDetails ? (
+                <div style={{ padding: '2rem', textAlign: 'center', color: '#fbbf24' }}>Loading...</div>
+              ) : selectedWithdrawalUser ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                  {/* Basic Info */}
+                  <div style={{ background: '#090e11', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                    <p style={{ color: '#fff', fontSize: '0.9rem', marginBottom: '0.3rem' }}><strong>Name:</strong> {selectedWithdrawalUser.full_name}</p>
+                    <p style={{ color: '#fff', fontSize: '0.9rem', marginBottom: '0.3rem' }}><strong>Phone:</strong> {selectedWithdrawalUser.phone_number}</p>
+                    <p style={{ color: '#fff', fontSize: '0.9rem', marginBottom: '0.3rem' }}><strong>User ID:</strong> {selectedWithdrawalUser.custom_user_id}</p>
+                    <p style={{ color: '#fff', fontSize: '0.9rem', marginBottom: '0.3rem' }}><strong>Current Balance:</strong> {selectedWithdrawalUser.coin_balance} Coins</p>
+                  </div>
+
+                  {/* Transactions */}
+                  <div>
+                    <h4 style={{ color: '#fbbf24', fontSize: '1rem', marginBottom: '0.5rem' }}>Transaction History ({userTransactions.length})</h4>
+                    <div style={{ maxHeight: '200px', overflowY: 'auto', background: '#090e11', borderRadius: '8px', border: '1px solid var(--border-color)', padding: '0.5rem' }}>
+                      {userTransactions.length === 0 ? <p style={{ color: 'var(--text-sub)', fontSize: '0.8rem', padding: '0.5rem' }}>No transactions found.</p> : userTransactions.map(tx => (
+                        <div key={tx.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                          <div>
+                            <span style={{ color: tx.transaction_type === 'withdrawal' ? '#f87171' : '#00e676', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase' }}>{tx.transaction_type}</span>
+                            <div style={{ color: '#fff', fontSize: '0.8rem' }}>{tx.description}</div>
+                            <div style={{ color: 'var(--text-sub)', fontSize: '0.7rem' }}>{new Date(tx.created_at).toLocaleString()}</div>
+                          </div>
+                          <div style={{ color: tx.transaction_type === 'withdrawal' ? '#f87171' : '#fbbf24', fontWeight: 'bold' }}>
+                            {tx.transaction_type === 'withdrawal' ? '-' : '+'}{tx.amount}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Referrals */}
+                  <div>
+                    <h4 style={{ color: '#c084fc', fontSize: '1rem', marginBottom: '0.5rem' }}>Referred Users ({userReferredList.length})</h4>
+                    <div style={{ maxHeight: '150px', overflowY: 'auto', background: '#090e11', borderRadius: '8px', border: '1px solid var(--border-color)', padding: '0.5rem' }}>
+                      {userReferredList.length === 0 ? <p style={{ color: 'var(--text-sub)', fontSize: '0.8rem', padding: '0.5rem' }}>No referrals found.</p> : userReferredList.map((ru, idx) => (
+                        <div key={idx} style={{ padding: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.05)', color: '#fff', fontSize: '0.85rem' }}>
+                          {ru.phone_number} <span style={{ color: 'var(--text-sub)', fontSize: '0.75rem', marginLeft: '0.5rem' }}>({new Date(ru.created_at).toLocaleDateString()})</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
