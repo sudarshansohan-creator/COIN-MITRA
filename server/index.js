@@ -1274,6 +1274,33 @@ app.post('/api/admin/reject-manual-request', async (req, res) => {
 });
 
 // ==========================================
+// AD TASK VERIFICATION API
+// ==========================================
+app.post('/api/verify-ad-click', async (req, res) => {
+  try {
+    const { userId, targetLink } = req.body;
+    if (!userId || !targetLink) {
+      return res.status(400).json({ success: false, error: 'Missing userId or targetLink.' });
+    }
+
+    // 1. Reward the user (1 coin for this specific ad task)
+    await rewardUserWalletForTask(userId, 1, `Ad Link Visit Bonus: ${targetLink}`, null);
+
+    // 2. Track the click in ad_link_clicks table
+    await supabase.from('ad_link_clicks').insert([{
+      user_id: userId,
+      target_link: targetLink,
+      coins_awarded: 1
+    }]);
+
+    res.json({ success: true, message: 'Verified! +1 Coin added to your wallet.' });
+  } catch (error) {
+    console.error('Verify ad click error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ==========================================
 // LEADERBOARD APIs
 // ==========================================
 

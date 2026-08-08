@@ -172,3 +172,22 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.withdrawals;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.bot_sessions;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.platform_settings;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.admin_users;
+
+-- ==============================================================================
+-- 7. AD LINK CLICKS TRACKING TABLE
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.ad_link_clicks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id TEXT NOT NULL,
+  target_link TEXT NOT NULL,
+  coins_awarded INTEGER DEFAULT 1,
+  clicked_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Index for fast user history lookup
+CREATE INDEX IF NOT EXISTS idx_ad_link_clicks_user ON public.ad_link_clicks(user_id);
+
+-- Enable RLS & Realtime
+ALTER TABLE public.ad_link_clicks ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow public access ad clicks" ON public.ad_link_clicks FOR ALL USING (true);
+ALTER PUBLICATION supabase_realtime ADD TABLE public.ad_link_clicks;

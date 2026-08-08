@@ -30,6 +30,10 @@ export default function ChannelGrid({
   // All Tasks Done Modal State
   const [showAllDonePopup, setShowAllDonePopup] = useState(false);
   
+  // Ad Task State
+  const [adClickTime, setAdClickTime] = useState(null);
+  const [isAdVerifying, setIsAdVerifying] = useState(false);
+  
   // Mode State: 'auto' | 'manual'
   const [taskMode, setTaskMode] = useState('manual');
   const [updatingMode, setUpdatingMode] = useState(false);
@@ -42,6 +46,51 @@ export default function ChannelGrid({
 
   const userId = userSession?.customUserId || userSession?.uid;
 
+  // Handle visibility change for Ad Task Verification
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible' && adClickTime) {
+        const timePassed = Date.now() - adClickTime;
+        setAdClickTime(null); // Reset immediately to prevent multiple triggers
+        
+        if (timePassed >= 5000) {
+          // Valid ad click (>= 5 seconds)
+          setIsAdVerifying(true);
+          try {
+            const res = await fetch('https://coin-mitra.onrender.com/api/verify-ad-click', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                userId,
+                targetLink: 'https://omg10.com/4/11530711'
+              })
+            });
+            const data = await res.json();
+            if (data.success) {
+              showToast('🎉 Awesome! +1 Coin added to your wallet for visiting the ad!');
+              if (typeof onRefreshProfile === 'function') {
+                onRefreshProfile();
+              }
+            } else {
+              alert(data.error || 'Failed to verify ad visit.');
+            }
+          } catch (err) {
+            console.error('Ad verification error:', err);
+            alert('Network error verifying ad visit.');
+          } finally {
+            setIsAdVerifying(false);
+          }
+        } else {
+          // Invalid ad click (< 5 seconds)
+          alert('You must stay on the page for at least 5 seconds to earn the coin!');
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [adClickTime, userId, onRefreshProfile]);
+
   // 1. Fetch User Task Mode and Task Completions
   useEffect(() => {
     if (!userId) return;
@@ -49,7 +98,7 @@ export default function ChannelGrid({
     // Fetch Mode
     const fetchModeAndCompletions = async () => {
       try {
-        const res = await fetch(`/api/user-mode/${userId}`);
+        const res = await fetch(`https://coin-mitra.onrender.com/api/user-mode/${userId}`);
         const data = await res.json();
         if (data.success && data.mode) {
           setTaskMode(data.mode);
@@ -350,6 +399,72 @@ export default function ChannelGrid({
             <Hand size={14} /> Manual (ম্যানুয়াল)
           </button>
         </div>
+      </div>
+
+      {/* Special Ad Task Card */}
+      <div style={{
+        background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(245, 158, 11, 0.05))',
+        border: '1px solid rgba(245, 158, 11, 0.3)',
+        borderRadius: 'var(--radius-md)',
+        padding: '1.25rem',
+        marginBottom: '1.75rem',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '1rem'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+          <div style={{
+            width: '46px',
+            height: '46px',
+            borderRadius: '12px',
+            background: 'rgba(245, 158, 11, 0.2)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#fbbf24'
+          }}>
+            <Sparkles size={24} />
+          </div>
+          <div>
+            <h4 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              Bonus Ad Task 🎁 <span style={{ fontSize: '0.75rem', background: '#fbbf24', color: '#000', padding: '0.15rem 0.4rem', borderRadius: '4px', fontWeight: 800 }}>+1 Coin</span>
+            </h4>
+            <p style={{ color: 'var(--text-sub)', fontSize: '0.82rem', marginTop: '0.2rem' }}>
+              Click the link and stay on the page for <strong style={{ color: '#fbbf24' }}>at least 5 seconds</strong> to claim your reward!
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={() => {
+            if (!userId) {
+              alert('Please log in first.');
+              return;
+            }
+            if (isAdVerifying) return;
+            setAdClickTime(Date.now());
+            window.open('https://omg10.com/4/11530711', '_blank');
+          }}
+          disabled={isAdVerifying}
+          className="btn-gold"
+          style={{
+            padding: '0.6rem 1.25rem',
+            fontWeight: 700,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+            opacity: isAdVerifying ? 0.7 : 1,
+            cursor: isAdVerifying ? 'wait' : 'pointer'
+          }}
+        >
+          {isAdVerifying ? (
+            <><RefreshCw size={16} style={{ animation: 'spin 1s linear infinite' }} /> Verifying...</>
+          ) : (
+            <><ExternalLink size={16} /> Visit Ad Link</>
+          )}
+        </button>
       </div>
 
       {/* Section Header */}
