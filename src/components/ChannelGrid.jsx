@@ -56,8 +56,8 @@ export default function ChannelGrid({
         const timePassed = Date.now() - adClickTime;
         setAdClickTime(null); // Reset immediately to prevent multiple triggers
         
-        if (timePassed >= 5000) {
-          // Valid ad click (>= 5 seconds)
+        if (timePassed >= 7000) {
+          // Valid ad click (>= 7 seconds)
           setIsAdVerifying(true);
           try {
             const res = await fetch('https://coin-mitra.onrender.com/api/verify-ad-click', {
@@ -94,8 +94,8 @@ export default function ChannelGrid({
             setIsAdVerifying(false);
           }
         } else {
-          // Invalid ad click (< 5 seconds)
-          alert('You must stay on the page for at least 5 seconds to earn the coin!');
+          // Invalid ad click (< 7 seconds)
+          alert('You must stay on the page for at least 7 seconds to earn the coin!');
         }
       }
     };
