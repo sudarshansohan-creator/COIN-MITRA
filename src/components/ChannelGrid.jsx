@@ -475,13 +475,8 @@ export default function ChannelGrid({
               Bonus Ad Task 🎁 <span style={{ fontSize: '0.75rem', background: '#fbbf24', color: '#000', padding: '0.15rem 0.4rem', borderRadius: '4px', fontWeight: 800 }}>+0.25 Coin</span>
             </h4>
             <p style={{ color: 'var(--text-sub)', fontSize: '0.82rem', marginTop: '0.2rem', marginBottom: '0.4rem' }}>
-              Click the link and stay on the page for <strong style={{ color: '#fbbf24' }}>at least 5 seconds</strong> to claim your reward!
+              Click the link and stay on the page for <strong style={{ color: '#fbbf24' }}>at least 7 seconds</strong> to claim your reward!
             </p>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <span style={{ fontSize: '0.75rem', background: 'rgba(255, 255, 255, 0.1)', padding: '0.1rem 0.4rem', borderRadius: '4px' }}>
-                Ads Watched: <strong style={{ color: '#fbbf24' }}>{adWatchCount}/10</strong>
-              </span>
-            </div>
           </div>
         </div>
 

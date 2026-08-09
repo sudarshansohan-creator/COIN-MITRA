@@ -1318,18 +1318,13 @@ app.post('/api/verify-ad-click', async (req, res) => {
 
     // Check if currently locked
     if (user.ad_locked_until && new Date(user.ad_locked_until) > new Date()) {
-      return res.status(403).json({ success: false, error: 'Ad tasks are locked for 15 minutes.' });
+      return res.status(403).json({ success: false, error: 'Ad tasks are locked for 1 hour after each click. Please try again later.' });
     }
 
     // Calculate new state
     let newCount = (user.ad_watch_count || 0) + 1;
-    let newLock = null;
-
-    if (newCount >= 10) {
-      newCount = 0;
-      // Set lock for 15 minutes from now
-      newLock = new Date(Date.now() + 15 * 60 * 1000).toISOString();
-    }
+    // Set lock for 1 hour from now for every click
+    let newLock = new Date(Date.now() + 60 * 60 * 1000).toISOString();
 
     // 1. Reward the user (0.25 coin for this specific ad task)
     await rewardUserWalletForTask(userId, 0.25, `Ad Link Visit Bonus: ${targetLink}`, null);
