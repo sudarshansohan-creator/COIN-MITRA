@@ -462,14 +462,21 @@ export default function ChannelGrid({
       {/* Special Ad Task Cards */}
       {[
         { id: 1, url: 'https://omg10.com/4/11530711', title: 'Bonus Ad Task 1' },
-        { id: 2, url: 'https://omg10.com/4/11536477', title: 'Bonus Ad Task 2' }
-      ].map((ad, idx) => (
+        { id: 2, url: 'https://omg10.com/4/11536477', title: 'Bonus Ad Task 2' },
+        { id: 3, url: 'https://omg10.com/4/11536484', title: 'Bonus Ad Task 3' },
+        { id: 4, url: 'https://omg10.com/4/11536489', title: 'Bonus Ad Task 4' },
+        { id: 5, url: 'https://omg10.com/4/11536479', title: 'Bonus Ad Task 5' },
+        { id: 6, url: 'https://omg10.com/4/11536485', title: 'Bonus Ad Task 6' },
+        { id: 7, url: 'https://omg10.com/4/11536478', title: 'Bonus Ad Task 7' },
+        { id: 8, url: 'https://omg10.com/4/11536483', title: 'Bonus Ad Task 8' },
+        { id: 9, url: 'https://omg10.com/4/11536481', title: 'Bonus Ad Task 9' },
+      ].map((ad, idx, arr) => (
         <div key={ad.id} style={{
           background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(245, 158, 11, 0.05))',
           border: '1px solid rgba(245, 158, 11, 0.3)',
           borderRadius: 'var(--radius-md)',
           padding: '1.25rem',
-          marginBottom: idx === 1 ? '1.75rem' : '1rem',
+          marginBottom: idx === arr.length - 1 ? '1.75rem' : '1rem',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
