@@ -470,6 +470,7 @@ export default function ChannelGrid({
         { id: 7, url: 'https://omg10.com/4/11536478', title: 'Bonus Ad Task 7' },
         { id: 8, url: 'https://omg10.com/4/11536483', title: 'Bonus Ad Task 8' },
         { id: 9, url: 'https://omg10.com/4/11536481', title: 'Bonus Ad Task 9' },
+        { id: 10, url: 'https://omg10.com/4/11536472', title: 'Bonus Ad Task 10' },
       ].map((ad, idx, arr) => (
         <div key={ad.id} style={{
           background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(245, 158, 11, 0.05))',
