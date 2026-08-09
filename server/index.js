@@ -1293,17 +1293,17 @@ app.get('/api/ad-status/:userId', async (req, res) => {
     if (error || !user) return res.status(404).json({ success: false, error: 'User not found' });
     
     // Fetch per-ad locks from ad_link_clicks
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const lockTimeLimit = new Date(Date.now() - 15 * 60 * 1000).toISOString();
     const { data: recentClicks } = await supabase
       .from('ad_link_clicks')
       .select('target_link, clicked_at')
       .eq('user_id', userId)
-      .gte('clicked_at', oneHourAgo);
+      .gte('clicked_at', lockTimeLimit);
 
     const adLocks = {};
     if (recentClicks) {
       recentClicks.forEach(click => {
-        const lockExpiration = new Date(new Date(click.clicked_at).getTime() + 60 * 60 * 1000).toISOString();
+        const lockExpiration = new Date(new Date(click.clicked_at).getTime() + 15 * 60 * 1000).toISOString();
         if (!adLocks[click.target_link] || new Date(lockExpiration) > new Date(adLocks[click.target_link])) {
           adLocks[click.target_link] = lockExpiration;
         }
@@ -1335,19 +1335,19 @@ app.post('/api/verify-ad-click', async (req, res) => {
     if (fetchErr || !user) return res.status(404).json({ success: false, error: 'User not found.' });
 
     // Check if this specific ad is currently locked
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const lockTimeLimit = new Date(Date.now() - 15 * 60 * 1000).toISOString();
     const { data: recentClick } = await supabase
       .from('ad_link_clicks')
       .select('clicked_at')
       .eq('user_id', userId)
       .eq('target_link', targetLink)
-      .gte('clicked_at', oneHourAgo)
+      .gte('clicked_at', lockTimeLimit)
       .order('clicked_at', { ascending: false })
       .limit(1)
       .maybeSingle();
 
     if (recentClick) {
-      return res.status(403).json({ success: false, error: 'This ad is locked for 1 hour after each click. Please try again later.' });
+      return res.status(403).json({ success: false, error: 'This ad is locked for 15 minutes after each click. Please try again later.' });
     }
 
     // 1. Reward the user (0.25 coin for this specific ad task)

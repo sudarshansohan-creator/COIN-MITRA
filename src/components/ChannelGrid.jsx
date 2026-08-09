@@ -82,7 +82,7 @@ export default function ChannelGrid({
               
               setAdLocks(prev => ({
                 ...prev,
-                [clickedAdLink]: new Date(Date.now() + 60 * 60 * 1000).toISOString()
+                [clickedAdLink]: new Date(Date.now() + 15 * 60 * 1000).toISOString()
               }));
               
             } else {
