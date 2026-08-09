@@ -36,6 +36,7 @@ export default function ChannelGrid({
   const [adWatchCount, setAdWatchCount] = useState(0);
   const [adLockedUntil, setAdLockedUntil] = useState(null);
   const [adWaitRemaining, setAdWaitRemaining] = useState(0); // For 1-3s gap and lock countdown
+  const [clickedAdLink, setClickedAdLink] = useState(null);
   
   // Mode State: 'auto' | 'manual'
   const [taskMode, setTaskMode] = useState('manual');
@@ -65,7 +66,7 @@ export default function ChannelGrid({
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 userId,
-                targetLink: 'https://omg10.com/4/11530711'
+                targetLink: clickedAdLink || 'https://omg10.com/4/11530711'
               })
             });
             const data = await res.json();
@@ -97,6 +98,7 @@ export default function ChannelGrid({
           // Invalid ad click (< 7 seconds)
           alert('You must stay on the page for at least 7 seconds to earn the coin!');
         }
+        setClickedAdLink(null);
       }
     };
 
@@ -444,75 +446,81 @@ export default function ChannelGrid({
         </div>
       </div>
 
-      {/* Special Ad Task Card */}
-      <div style={{
-        background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(245, 158, 11, 0.05))',
-        border: '1px solid rgba(245, 158, 11, 0.3)',
-        borderRadius: 'var(--radius-md)',
-        padding: '1.25rem',
-        marginBottom: '1.75rem',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: '1rem'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-          <div style={{
-            width: '46px',
-            height: '46px',
-            borderRadius: '12px',
-            background: 'rgba(245, 158, 11, 0.2)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#fbbf24'
-          }}>
-            <Sparkles size={24} />
+      {/* Special Ad Task Cards */}
+      {[
+        { id: 1, url: 'https://omg10.com/4/11530711', title: 'Bonus Ad Task 1' },
+        { id: 2, url: 'https://omg10.com/4/11536477', title: 'Bonus Ad Task 2' }
+      ].map((ad, idx) => (
+        <div key={ad.id} style={{
+          background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(245, 158, 11, 0.05))',
+          border: '1px solid rgba(245, 158, 11, 0.3)',
+          borderRadius: 'var(--radius-md)',
+          padding: '1.25rem',
+          marginBottom: idx === 1 ? '1.75rem' : '1rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '1rem'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+            <div style={{
+              width: '46px',
+              height: '46px',
+              borderRadius: '12px',
+              background: 'rgba(245, 158, 11, 0.2)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#fbbf24'
+            }}>
+              <Sparkles size={24} />
+            </div>
+            <div>
+              <h4 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                {ad.title} 🎁 <span style={{ fontSize: '0.75rem', background: '#fbbf24', color: '#000', padding: '0.15rem 0.4rem', borderRadius: '4px', fontWeight: 800 }}>+0.25 Coin</span>
+              </h4>
+              <p style={{ color: 'var(--text-sub)', fontSize: '0.82rem', marginTop: '0.2rem', marginBottom: '0.4rem' }}>
+                Click the link and stay on the page for <strong style={{ color: '#fbbf24' }}>at least 7 seconds</strong> to claim your reward!
+              </p>
+            </div>
           </div>
-          <div>
-            <h4 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              Bonus Ad Task 🎁 <span style={{ fontSize: '0.75rem', background: '#fbbf24', color: '#000', padding: '0.15rem 0.4rem', borderRadius: '4px', fontWeight: 800 }}>+0.25 Coin</span>
-            </h4>
-            <p style={{ color: 'var(--text-sub)', fontSize: '0.82rem', marginTop: '0.2rem', marginBottom: '0.4rem' }}>
-              Click the link and stay on the page for <strong style={{ color: '#fbbf24' }}>at least 7 seconds</strong> to claim your reward!
-            </p>
-          </div>
-        </div>
 
-        <button
-          onClick={() => {
-            if (!userId) {
-              alert('Please log in first.');
-              return;
-            }
-            if (isAdVerifying || adLockedUntil || adWaitRemaining > 0) return;
-            setAdClickTime(Date.now());
-            window.open('https://omg10.com/4/11530711', '_blank');
-          }}
-          disabled={isAdVerifying || !!adLockedUntil || adWaitRemaining > 0}
-          className="btn-gold"
-          style={{
-            padding: '0.6rem 1.25rem',
-            fontWeight: 700,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.4rem',
-            opacity: (isAdVerifying || adLockedUntil || adWaitRemaining > 0) ? 0.6 : 1,
-            cursor: (isAdVerifying || adLockedUntil || adWaitRemaining > 0) ? 'not-allowed' : 'pointer'
-          }}
-        >
-          {isAdVerifying ? (
-            <><RefreshCw size={16} style={{ animation: 'spin 1s linear infinite' }} /> Verifying...</>
-          ) : adLockedUntil ? (
-            <><Clock size={16} /> Locked ({Math.floor(adWaitRemaining / 60)}:{(adWaitRemaining % 60).toString().padStart(2, '0')})</>
-          ) : adWaitRemaining > 0 ? (
-            <><Clock size={16} /> Wait {adWaitRemaining}s...</>
-          ) : (
-            <><ExternalLink size={16} /> Visit Ad Link</>
-          )}
-        </button>
-      </div>
+          <button
+            onClick={() => {
+              if (!userId) {
+                alert('Please log in first.');
+                return;
+              }
+              if (isAdVerifying || adLockedUntil || adWaitRemaining > 0) return;
+              setClickedAdLink(ad.url);
+              setAdClickTime(Date.now());
+              window.open(ad.url, '_blank');
+            }}
+            disabled={isAdVerifying || !!adLockedUntil || adWaitRemaining > 0}
+            className="btn-gold"
+            style={{
+              padding: '0.6rem 1.25rem',
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              opacity: (isAdVerifying || adLockedUntil || adWaitRemaining > 0) ? 0.6 : 1,
+              cursor: (isAdVerifying || adLockedUntil || adWaitRemaining > 0) ? 'not-allowed' : 'pointer'
+            }}
+          >
+            {isAdVerifying && clickedAdLink === ad.url ? (
+              <><RefreshCw size={16} style={{ animation: 'spin 1s linear infinite' }} /> Verifying...</>
+            ) : adLockedUntil ? (
+              <><Clock size={16} /> Locked ({Math.floor(adWaitRemaining / 60)}:{(adWaitRemaining % 60).toString().padStart(2, '0')})</>
+            ) : adWaitRemaining > 0 ? (
+              <><Clock size={16} /> Wait {adWaitRemaining}s...</>
+            ) : (
+              <><ExternalLink size={16} /> Visit Ad Link</>
+            )}
+          </button>
+        </div>
+      ))}
 
       {/* Section Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.5rem' }}>
