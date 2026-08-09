@@ -50,61 +50,77 @@ export default function ChannelGrid({
 
   const userId = userSession?.customUserId || userSession?.uid;
 
-  // Handle visibility change for Ad Task Verification
+  const adClickTimeRef = useRef(null);
+  const clickedAdLinkRef = useRef(null);
+
+  // Handle visibility/focus change for Ad Task Verification
   useEffect(() => {
-    const handleVisibilityChange = async () => {
-      if (document.visibilityState === 'visible' && adClickTime) {
-        const timePassed = Date.now() - adClickTime;
-        setAdClickTime(null); // Reset immediately to prevent multiple triggers
-        
-        if (timePassed >= 7000) {
-          // Valid ad click (>= 7 seconds)
-          setIsAdVerifying(true);
-          try {
-            const res = await fetch('https://coin-mitra.onrender.com/api/verify-ad-click', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                userId,
-                targetLink: clickedAdLink || 'https://omg10.com/4/11530711'
-              })
-            });
-            const data = await res.json();
-            if (data.success) {
-              showToast('🎉 Awesome! +0.2 Coin added to your wallet for visiting the ad!');
-              
-              if (typeof onRefreshProfile === 'function') {
-                onRefreshProfile();
-              }
-              
-              setAdLocks(prev => ({
-                ...prev,
-                [clickedAdLink]: new Date(Date.now() + 15 * 60 * 1000).toISOString()
-              }));
-              
-            } else {
-              alert(data.error || 'Failed to verify ad visit.');
+    const handleReturn = async () => {
+      // Only process if the page becomes active
+      if (document.visibilityState !== 'visible' && !document.hasFocus()) return;
+      
+      // Check if there's an active ad click
+      if (!adClickTimeRef.current || !clickedAdLinkRef.current) return;
+
+      const timePassed = Date.now() - adClickTimeRef.current;
+      const targetLink = clickedAdLinkRef.current;
+      
+      // Reset immediately to prevent multiple triggers
+      adClickTimeRef.current = null;
+      clickedAdLinkRef.current = null;
+      setClickedAdLink(null);
+
+      if (timePassed >= 7000) {
+        // Valid ad click (>= 7 seconds)
+        setIsAdVerifying(true);
+        try {
+          const res = await fetch('https://coin-mitra.onrender.com/api/verify-ad-click', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId,
+              targetLink: targetLink || 'https://omg10.com/4/11530711'
+            })
+          });
+          const data = await res.json();
+          if (data.success) {
+            showToast('🎉 Awesome! +0.2 Coin added to your wallet for visiting the ad!');
+            
+            if (typeof onRefreshProfile === 'function') {
+              onRefreshProfile();
             }
-          } catch (err) {
-            console.error('Ad verification error:', err);
-            alert('Network error verifying ad visit.');
-          } finally {
-            setIsAdVerifying(false);
-            // Add random 1-5s delay for other ads AFTER verification completes
-            setGlobalAdDelay(Math.floor(Math.random() * 5) + 1);
+            
+            setAdLocks(prev => ({
+              ...prev,
+              [targetLink]: new Date(Date.now() + 15 * 60 * 1000).toISOString()
+            }));
+            
+          } else {
+            alert(data.error || 'Failed to verify ad visit.');
           }
-        } else {
-          // Invalid ad click (< 7 seconds)
-          alert('You must stay on the page for at least 7 seconds to earn the coin!');
+        } catch (err) {
+          console.error('Ad verification error:', err);
+          alert('Network error verifying ad visit.');
+        } finally {
+          setIsAdVerifying(false);
+          // Add random 1-5s delay for other ads AFTER verification completes
           setGlobalAdDelay(Math.floor(Math.random() * 5) + 1);
         }
-        setClickedAdLink(null);
+      } else {
+        // Invalid ad click (< 7 seconds)
+        alert('You must stay on the page for at least 7 seconds to earn the coin!');
+        setGlobalAdDelay(Math.floor(Math.random() * 5) + 1);
       }
     };
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [adClickTime, userId, onRefreshProfile, clickedAdLink]);
+    document.addEventListener('visibilitychange', handleReturn);
+    window.addEventListener('focus', handleReturn);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleReturn);
+      window.removeEventListener('focus', handleReturn);
+    };
+  }, [userId]); // Removed unstable dependencies to ensure reliable event firing
 
   // Handle countdown timer for gaps and locks
   useEffect(() => {
@@ -520,8 +536,9 @@ export default function ChannelGrid({
                 return;
               }
               if (isAdVerifying || adLocks[ad.url] || adWaitRemaining[ad.url] > 0 || globalAdDelay > 0) return;
+              clickedAdLinkRef.current = ad.url;
+              adClickTimeRef.current = Date.now();
               setClickedAdLink(ad.url);
-              setAdClickTime(Date.now());
               window.open(ad.url, '_blank');
             }}
             disabled={isAdVerifying || !!adLocks[ad.url] || adWaitRemaining[ad.url] > 0 || globalAdDelay > 0}
