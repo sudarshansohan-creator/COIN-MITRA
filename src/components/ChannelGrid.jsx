@@ -57,9 +57,6 @@ export default function ChannelGrid({
         const timePassed = Date.now() - adClickTime;
         setAdClickTime(null); // Reset immediately to prevent multiple triggers
         
-        // Add random 1-5s delay for other ads
-        setGlobalAdDelay(Math.floor(Math.random() * 5) + 1);
-        
         if (timePassed >= 7000) {
           // Valid ad click (>= 7 seconds)
           setIsAdVerifying(true);
@@ -93,10 +90,13 @@ export default function ChannelGrid({
             alert('Network error verifying ad visit.');
           } finally {
             setIsAdVerifying(false);
+            // Add random 1-5s delay for other ads AFTER verification completes
+            setGlobalAdDelay(Math.floor(Math.random() * 5) + 1);
           }
         } else {
           // Invalid ad click (< 7 seconds)
           alert('You must stay on the page for at least 7 seconds to earn the coin!');
+          setGlobalAdDelay(Math.floor(Math.random() * 5) + 1);
         }
         setClickedAdLink(null);
       }
@@ -104,7 +104,7 @@ export default function ChannelGrid({
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [adClickTime, userId, onRefreshProfile]);
+  }, [adClickTime, userId, onRefreshProfile, clickedAdLink]);
 
   // Handle countdown timer for gaps and locks
   useEffect(() => {
