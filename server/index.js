@@ -90,11 +90,12 @@ const fetchActiveTasksFromDB = async () => {
 
 // Credit User Wallet in Supabase Database upon Task Follow Completion
 const rewardUserWalletForTask = async (userId, coinReward = 50, taskDescription = 'Reward for completing WhatsApp task', taskId = null) => {
-  const cleanPhone = userId.replace(/\D/g, '');
+  const safeUserId = String(userId);
+  const cleanPhone = safeUserId.replace(/\D/g, '');
   let query = supabase.from('users').select('*, daily_earnings');
-  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
-  let orConditions = [`custom_user_id.eq.${userId}`];
-  if (isUUID) orConditions.push(`uid.eq.${userId}`);
+  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(safeUserId);
+  let orConditions = [`custom_user_id.eq.${safeUserId}`];
+  if (isUUID) orConditions.push(`uid.eq.${safeUserId}`);
   if (cleanPhone && cleanPhone.length >= 10) orConditions.push(`phone_number.ilike.%${cleanPhone.slice(-10)}%`);
   
   query = query.or(orConditions.join(','));
@@ -140,12 +141,12 @@ const rewardUserWalletForTask = async (userId, coinReward = 50, taskDescription 
     const { error: updateErr } = await supabase
       .from('users')
       .update({
-        coin_balance: newBalance,
+        coin_balance: parseFloat(newBalance.toFixed(2)),
         total_tasks_completed: newTasksCompleted,
         current_streak: currentStreak,
         longest_streak: longestStreak,
         last_task_date: lastTaskDate,
-        daily_earnings: dailyEarnings,
+        daily_earnings: parseFloat(dailyEarnings.toFixed(2)),
         updated_at: new Date().toISOString()
       })
       .eq('uid', user.uid);
