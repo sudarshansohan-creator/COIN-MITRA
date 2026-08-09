@@ -83,8 +83,8 @@ CREATE INDEX IF NOT EXISTS idx_withdrawals_status ON public.withdrawals(status);
 -- ------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.platform_settings (
   id INTEGER PRIMARY KEY DEFAULT 1,
-  coins_per_rupee INTEGER NOT NULL DEFAULT 20 CHECK (coins_per_rupee > 0),
-  min_withdrawal_coins INTEGER NOT NULL DEFAULT 2000 CHECK (min_withdrawal_coins > 0),
+  coins_per_rupee INTEGER NOT NULL DEFAULT 30 CHECK (coins_per_rupee > 0),
+  min_withdrawal_coins INTEGER NOT NULL DEFAULT 3000 CHECK (min_withdrawal_coins > 0),
   min_withdrawal_rupees NUMERIC(10, 2) NOT NULL DEFAULT 100.00 CHECK (min_withdrawal_rupees > 0),
   referral_bonus_referrer INTEGER NOT NULL DEFAULT 200 CHECK (referral_bonus_referrer >= 0),
   referral_bonus_referee INTEGER NOT NULL DEFAULT 100 CHECK (referral_bonus_referee >= 0),
@@ -93,7 +93,7 @@ CREATE TABLE IF NOT EXISTS public.platform_settings (
 );
 
 INSERT INTO public.platform_settings (id, coins_per_rupee, min_withdrawal_coins, min_withdrawal_rupees, referral_bonus_referrer, referral_bonus_referee, default_task_reward)
-VALUES (1, 20, 2000, 100.00, 200, 100, 50)
+VALUES (1, 30, 3000, 100.00, 200, 100, 50)
 ON CONFLICT (id) DO NOTHING;
 
 -- ------------------------------------------------------------------------------

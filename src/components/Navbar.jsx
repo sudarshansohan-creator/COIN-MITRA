@@ -23,7 +23,7 @@ export default function Navbar({
   onOpenAdmin,
   onLogout
 }) {
-  const balanceInRupees = (coinBalance / 20).toFixed(2);
+  const balanceInRupees = (coinBalance / 30).toFixed(2);
 
   const navItems = [
     { id: 'dashboard', label: 'Home', icon: Home },

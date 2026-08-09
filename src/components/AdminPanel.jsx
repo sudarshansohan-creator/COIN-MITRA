@@ -21,8 +21,8 @@ export default function AdminPanel({ isOpen, onClose }) {
   
   // Pricing & Settings State
   const [pricing, setPricing] = useState({
-    coins_per_rupee: 20,
-    min_withdrawal_coins: 2000,
+    coins_per_rupee: 30,
+    min_withdrawal_coins: 3000,
     min_withdrawal_rupees: 100,
     referral_bonus_referrer: 200,
     referral_bonus_referee: 100,
@@ -524,7 +524,7 @@ export default function AdminPanel({ isOpen, onClose }) {
           .single();
 
         if (userProfile) {
-          const newBalance = userProfile.coin_balance + (w.amount_in_coins || (w.amount_in_inr * 20));
+          const newBalance = userProfile.coin_balance + (w.amount_in_coins || (w.amount_in_inr * 30));
           await supabase
             .from('users')
             .update({ coin_balance: newBalance })
@@ -1122,7 +1122,7 @@ export default function AdminPanel({ isOpen, onClose }) {
                             ₹{w.amount_in_inr} INR
                           </span>
                           <span style={{ fontSize: '0.75rem', color: '#fbbf24' }}>
-                            ({w.amount_in_coins || (w.amount_in_inr * 20)} Coins)
+                            ({w.amount_in_coins || (w.amount_in_inr * 30)} Coins)
                           </span>
                           <span style={{
                             fontSize: '0.7rem',

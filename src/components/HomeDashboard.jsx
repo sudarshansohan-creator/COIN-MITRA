@@ -128,8 +128,8 @@ export default function HomeDashboard({
     };
   }, [userSession?.uid, userSession?.customUserId]);
 
-  const balanceInRupees = (userData.coinBalance / 20).toFixed(2);
-  const totalEarnedInRupees = (userData.coinBalance / 20).toFixed(2);
+  const balanceInRupees = (userData.coinBalance / 30).toFixed(2);
+  const totalEarnedInRupees = (userData.coinBalance / 30).toFixed(2);
   
   // Dynamic Live Connection Status Logic across all states
   const isConnected = botStatus === 'CONNECTED' || botStatus === 'SYNCING' || botStatus === 'COMPLETED' || userData.isBotConnected;
@@ -255,7 +255,7 @@ export default function HomeDashboard({
             width: 'fit-content'
           }}>
             <IndianRupee style={{ width: '13px', height: '13px', color: '#fbbf24' }} />
-            <span>Exchange Rate: <strong>20 Coins = ₹1</strong></span>
+            <span>Exchange Rate: <strong>30 Coins = ₹1</strong></span>
           </div>
 
           {/* Action Buttons (Stacked on Mobile) */}

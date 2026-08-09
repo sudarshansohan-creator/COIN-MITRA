@@ -25,7 +25,7 @@ export default function InviteEarnScreen({ userSession }) {
 
   // Dynamic Pricing State
   const [referralBonus, setReferralBonus] = useState(200);
-  const [coinsPerRupee, setCoinsPerRupee] = useState(20);
+  const [coinsPerRupee, setCoinsPerRupee] = useState(30);
 
   // Fetch Pricing settings from Supabase
   useEffect(() => {
@@ -227,7 +227,7 @@ export default function InviteEarnScreen({ userSession }) {
               const tasksDone = Math.min(10, friend.total_tasks_completed || 0);
               const taskPercent = Math.round((tasksDone / 10) * 100);
               const isCompleted = tasksDone >= 10;
-              const bonusCoins = isCompleted ? 200 : tasksDone * 20;
+              const bonusCoins = isCompleted ? 200 : tasksDone * 30;
 
               return (
                 <div 
@@ -254,7 +254,7 @@ export default function InviteEarnScreen({ userSession }) {
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                       <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--wa-green-light)' }}>
-                        +{bonusCoins} Coins (₹{(bonusCoins/20).toFixed(2)})
+                        +{bonusCoins} Coins (₹{(bonusCoins/30).toFixed(2)})
                       </span>
                       <span style={{
                         fontSize: '0.75rem',

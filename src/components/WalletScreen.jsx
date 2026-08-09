@@ -22,7 +22,7 @@ export default function WalletScreen({
   const [paymentMethod, setPaymentMethod] = useState('UPI'); // 'UPI' | 'Paytm'
   const [upiId, setUpiId] = useState('');
   const [paytmPhone, setPaytmPhone] = useState('');
-  const [amountCoins, setAmountCoins] = useState(2000);
+  const [amountCoins, setAmountCoins] = useState(3000);
   const [requestStatus, setRequestStatus] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -33,10 +33,10 @@ export default function WalletScreen({
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  // Minimum threshold: 2,000 Coins = ₹100
-  const MIN_THRESHOLD_COINS = 2000;
-
-  const currentRupees = (coinBalance / 20).toFixed(2);
+  // Minimum threshold: 3,000 Coins = ₹100
+  const MIN_THRESHOLD_COINS = 3000;
+  const INSUFFICIENT_BALANCE = coinBalance < MIN_THRESHOLD_COINS;
+  const currentRupees = (coinBalance / 30).toFixed(2);
   const progressPercent = Math.min(100, Math.round((coinBalance / MIN_THRESHOLD_COINS) * 100));
   const isEligible = coinBalance >= MIN_THRESHOLD_COINS;
 
@@ -165,7 +165,7 @@ export default function WalletScreen({
         return;
       }
 
-      const rupeesAmount = amountCoins / 20;
+      const rupeesAmount = amountCoins / 30;
 
       // 2. Insert into Supabase `withdrawals` table
       const { data: newWithdrawal, error: withdrawErr } = await supabase
@@ -233,7 +233,7 @@ export default function WalletScreen({
             fontWeight: 700,
             fontSize: '0.9rem'
           }}>
-            20 Coins = ₹1 INR
+            30 Coins = ₹1 INR
           </div>
         </div>
       </div>
@@ -384,7 +384,7 @@ export default function WalletScreen({
             </label>
             <input
               type="number"
-              min={2000}
+              min={3000}
               step={100}
               value={amountCoins}
               onChange={(e) => setAmountCoins(Number(e.target.value))}
@@ -392,7 +392,7 @@ export default function WalletScreen({
               required
             />
             <span style={{ fontSize: '0.78rem', color: 'var(--wa-green-light)', marginTop: '0.35rem', display: 'block', fontWeight: 600 }}>
-              Receive Amount: ₹{(amountCoins / 20).toFixed(2)} INR directly to your {paymentMethod} account.
+              Receive Amount: ₹{(amountCoins / 30).toFixed(2)} INR directly to your {paymentMethod} account.
             </span>
           </div>
 
@@ -479,7 +479,7 @@ export default function WalletScreen({
                       ₹{txn.amount_in_inr}
                     </span>
                     <span style={{ fontSize: '0.75rem', color: '#fbbf24' }}>
-                      {(txn.amount_in_coins || (txn.amount_in_inr * 20)).toLocaleString()} Coins
+                      {(txn.amount_in_coins || (txn.amount_in_inr * 30)).toLocaleString()} Coins
                     </span>
                   </div>
 
