@@ -1,5 +1,5 @@
 // src/components/ChannelGrid.jsx - Targeted WhatsApp Channels Directory & Mode Switcher Engine
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   TrendingUp, Cpu, Code, DollarSign, ShieldAlert, Radio, 
   CheckCircle, Clock, ExternalLink, Search, Sparkles, Filter,
