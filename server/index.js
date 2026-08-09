@@ -1362,9 +1362,7 @@ app.post('/api/verify-ad-click', async (req, res) => {
 
     res.json({ 
       success: true, 
-      message: 'Verified! +0.25 Coin added to your wallet.',
-      adWatchCount: newCount,
-      adLockedUntil: newLock
+      message: 'Verified! +0.25 Coin added to your wallet.'
     });
   } catch (error) {
     console.error('Verify ad click error:', error);
