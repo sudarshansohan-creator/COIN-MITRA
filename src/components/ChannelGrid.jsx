@@ -50,6 +50,34 @@ export default function ChannelGrid({
 
   const userId = userSession?.customUserId || userSession?.uid;
 
+  // Fetch initial ad locks from database on load
+  useEffect(() => {
+    const fetchLocks = async () => {
+      if (!userId) return;
+      
+      const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+      const { data, error } = await supabase
+        .from('ad_link_clicks')
+        .select('target_link, clicked_at')
+        .eq('user_id', userId)
+        .gte('clicked_at', fifteenMinsAgo);
+        
+      if (!error && data && data.length > 0) {
+        const initialLocks = {};
+        data.forEach(click => {
+          const expiresAt = new Date(new Date(click.clicked_at).getTime() + 15 * 60 * 1000).toISOString();
+          // If multiple clicks exist for same link somehow, keep the latest one
+          if (!initialLocks[click.target_link] || new Date(expiresAt) > new Date(initialLocks[click.target_link])) {
+            initialLocks[click.target_link] = expiresAt;
+          }
+        });
+        setAdLocks(initialLocks);
+      }
+    };
+    
+    fetchLocks();
+  }, [userId]);
+
   const adClickTimeRef = useRef(null);
   const clickedAdLinkRef = useRef(null);
 
