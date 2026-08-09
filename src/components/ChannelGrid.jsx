@@ -71,7 +71,7 @@ export default function ChannelGrid({
             });
             const data = await res.json();
             if (data.success) {
-              showToast('🎉 Awesome! +0.25 Coin added to your wallet for visiting the ad!');
+              showToast('🎉 Awesome! +0.2 Coin added to your wallet for visiting the ad!');
               
               if (typeof onRefreshProfile === 'function') {
                 onRefreshProfile();
@@ -505,7 +505,7 @@ export default function ChannelGrid({
             </div>
             <div>
               <h4 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                {ad.title} 🎁 <span style={{ fontSize: '0.75rem', background: '#fbbf24', color: '#000', padding: '0.15rem 0.4rem', borderRadius: '4px', fontWeight: 800 }}>+0.25 Coin</span>
+                {ad.title} 🎁 <span style={{ fontSize: '0.75rem', background: '#fbbf24', color: '#000', padding: '0.15rem 0.4rem', borderRadius: '4px', fontWeight: 800 }}>+0.2 Coin</span>
               </h4>
               <p style={{ color: 'var(--text-sub)', fontSize: '0.82rem', marginTop: '0.2rem', marginBottom: '0.4rem' }}>
                 Click the link and stay on the page for <strong style={{ color: '#fbbf24' }}>at least 7 seconds</strong> to claim your reward!
