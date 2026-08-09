@@ -33,15 +33,14 @@ export default function HomeDashboard({
   const [loading, setLoading] = useState(true);
 
   // 1. Fetch & Realtime Listen for User Profile & Referrals
-  useEffect(() => {
+  const fetchDashboardData = async () => {
     if (!userSession?.uid && !userSession?.customUserId) {
       setLoading(false);
       return;
     }
 
-    const fetchProfileAndReferrals = async () => {
-      try {
-        setLoading(true);
+    try {
+      setLoading(true);
 
         const { data: profile } = await supabase
           .from('users')
@@ -82,9 +81,10 @@ export default function HomeDashboard({
       } finally {
         setLoading(false);
       }
-    };
+  };
 
-    fetchProfileAndReferrals();
+  useEffect(() => {
+    fetchDashboardData();
 
     const userChannel = supabase
       .channel(`home-user-${userSession?.uid || 'guest'}`)
