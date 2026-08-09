@@ -414,6 +414,7 @@ export default function HomeDashboard({
         userSession={userSession}
         isSyncing={botStatus === 'SYNCING'}
         onNavigate={onNavigate}
+        onRefreshProfile={fetchDashboardData}
       />
 
     </div>
