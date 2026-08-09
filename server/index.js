@@ -103,8 +103,8 @@ const rewardUserWalletForTask = async (userId, coinReward = 50, taskDescription 
   if (userErr) throw new Error(`Failed to fetch user: ${userErr.message}`);
 
   if (user) {
-    const newBalance = (user.coin_balance || 0) + coinReward;
-    const newTasksCompleted = (user.total_tasks_completed || 0) + 1;
+    const newBalance = parseFloat(user.coin_balance || 0) + parseFloat(coinReward);
+    const newTasksCompleted = parseInt(user.total_tasks_completed || 0) + 1;
 
     // --- Streak Logic ---
     const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
