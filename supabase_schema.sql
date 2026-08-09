@@ -203,4 +203,5 @@ ALTER TABLE public.ad_link_clicks ALTER COLUMN coins_awarded TYPE NUMERIC(10, 2)
 -- 2. Add columns for tracking Ad Watch Limits and Locks
 ALTER TABLE public.users 
   ADD COLUMN IF NOT EXISTS ad_watch_count INTEGER DEFAULT 0,
-  ADD COLUMN IF NOT EXISTS ad_locked_until TIMESTAMPTZ DEFAULT NULL;
+  ADD COLUMN IF NOT EXISTS ad_locked_until TIMESTAMPTZ DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS daily_earnings NUMERIC(10, 2) DEFAULT 0;

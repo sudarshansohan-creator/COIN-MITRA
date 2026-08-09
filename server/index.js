@@ -91,7 +91,7 @@ const fetchActiveTasksFromDB = async () => {
 // Credit User Wallet in Supabase Database upon Task Follow Completion
 const rewardUserWalletForTask = async (userId, coinReward = 50, taskDescription = 'Reward for completing WhatsApp task', taskId = null) => {
   const cleanPhone = userId.replace(/\D/g, '');
-  let query = supabase.from('users').select('*');
+  let query = supabase.from('users').select('*, daily_earnings');
   const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
   let orConditions = [`custom_user_id.eq.${userId}`];
   if (isUUID) orConditions.push(`uid.eq.${userId}`);
@@ -113,6 +113,7 @@ const rewardUserWalletForTask = async (userId, coinReward = 50, taskDescription 
     let currentStreak = user.current_streak || 0;
     let longestStreak = user.longest_streak || 0;
     let lastTaskDate = user.last_task_date;
+    let dailyEarnings = parseFloat(user.daily_earnings || 0);
 
     if (lastTaskDate !== todayStr) {
       if (!lastTaskDate) {
@@ -130,6 +131,9 @@ const rewardUserWalletForTask = async (userId, coinReward = 50, taskDescription 
       }
       if (currentStreak > longestStreak) longestStreak = currentStreak;
       lastTaskDate = todayStr;
+      dailyEarnings = parseFloat(coinReward); // Reset daily earnings
+    } else {
+      dailyEarnings += parseFloat(coinReward); // Add to existing daily earnings
     }
     // --------------------
 
@@ -141,6 +145,7 @@ const rewardUserWalletForTask = async (userId, coinReward = 50, taskDescription 
         current_streak: currentStreak,
         longest_streak: longestStreak,
         last_task_date: lastTaskDate,
+        daily_earnings: dailyEarnings,
         updated_at: new Date().toISOString()
       })
       .eq('uid', user.uid);
@@ -1269,6 +1274,72 @@ app.post('/api/admin/reject-manual-request', async (req, res) => {
     res.json({ success: true, message: 'Request rejected.' });
   } catch (error) {
     console.error('Reject manual request error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ==========================================
+// LEADERBOARD API (Lazy Evaluated with IST)
+// ==========================================
+app.get('/api/leaderboard/daily', async (req, res) => {
+  try {
+    const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+    const todayStr = formatter.format(new Date());
+
+    const { data: users, error } = await supabase
+      .from('users')
+      .select('custom_user_id, full_name, daily_earnings')
+      .eq('last_task_date', todayStr)
+      .gt('daily_earnings', 0)
+      .order('daily_earnings', { ascending: false })
+      .limit(10);
+
+    if (error) throw error;
+
+    const leaderboard = users.map((u, index) => ({
+      rank: index + 1,
+      user_id: u.custom_user_id,
+      name: u.full_name,
+      amount: parseFloat(u.daily_earnings || 0).toFixed(2)
+    }));
+
+    res.json({ success: true, leaderboard });
+  } catch (error) {
+    console.error('Daily leaderboard error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/leaderboard/streak', async (req, res) => {
+  try {
+    const formatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+    const today = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
+    const todayStr = formatter.format(today);
+    
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = formatter.format(yesterday);
+
+    const { data: users, error } = await supabase
+      .from('users')
+      .select('custom_user_id, full_name, current_streak')
+      .in('last_task_date', [todayStr, yesterdayStr])
+      .gt('current_streak', 0)
+      .order('current_streak', { ascending: false })
+      .limit(10);
+
+    if (error) throw error;
+
+    const leaderboard = users.map((u, index) => ({
+      rank: index + 1,
+      user_id: u.custom_user_id,
+      name: u.full_name,
+      current_streak: u.current_streak
+    }));
+
+    res.json({ success: true, leaderboard });
+  } catch (error) {
+    console.error('Streak leaderboard error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
