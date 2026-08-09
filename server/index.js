@@ -1292,7 +1292,25 @@ app.get('/api/ad-status/:userId', async (req, res) => {
 
     if (error || !user) return res.status(404).json({ success: false, error: 'User not found' });
     
-    res.json({ success: true, adWatchCount: user.ad_watch_count || 0, adLockedUntil: user.ad_locked_until });
+    // Fetch per-ad locks from ad_link_clicks
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const { data: recentClicks } = await supabase
+      .from('ad_link_clicks')
+      .select('target_link, clicked_at')
+      .eq('user_id', userId)
+      .gte('clicked_at', oneHourAgo);
+
+    const adLocks = {};
+    if (recentClicks) {
+      recentClicks.forEach(click => {
+        const lockExpiration = new Date(new Date(click.clicked_at).getTime() + 60 * 60 * 1000).toISOString();
+        if (!adLocks[click.target_link] || new Date(lockExpiration) > new Date(adLocks[click.target_link])) {
+          adLocks[click.target_link] = lockExpiration;
+        }
+      });
+    }
+
+    res.json({ success: true, adLocks });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -1316,31 +1334,31 @@ app.post('/api/verify-ad-click', async (req, res) => {
     const { data: user, error: fetchErr } = await query.or(orConditions.join(',')).maybeSingle();
     if (fetchErr || !user) return res.status(404).json({ success: false, error: 'User not found.' });
 
-    // Check if currently locked
-    if (user.ad_locked_until && new Date(user.ad_locked_until) > new Date()) {
-      return res.status(403).json({ success: false, error: 'Ad tasks are locked for 1 hour after each click. Please try again later.' });
-    }
+    // Check if this specific ad is currently locked
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const { data: recentClick } = await supabase
+      .from('ad_link_clicks')
+      .select('clicked_at')
+      .eq('user_id', userId)
+      .eq('target_link', targetLink)
+      .gte('clicked_at', oneHourAgo)
+      .order('clicked_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-    // Calculate new state
-    let newCount = (user.ad_watch_count || 0) + 1;
-    // Set lock for 1 hour from now for every click
-    let newLock = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    if (recentClick) {
+      return res.status(403).json({ success: false, error: 'This ad is locked for 1 hour after each click. Please try again later.' });
+    }
 
     // 1. Reward the user (0.25 coin for this specific ad task)
     await rewardUserWalletForTask(userId, 0.25, `Ad Link Visit Bonus: ${targetLink}`, null);
 
-    // 2. Track the click in ad_link_clicks table
+    // 2. Track the click in ad_link_clicks table (this implicitly sets the lock for this ad)
     await supabase.from('ad_link_clicks').insert([{
       user_id: userId,
       target_link: targetLink,
       coins_awarded: 0.25
     }]);
-
-    // 3. Update user ad stats
-    await supabase.from('users').update({
-      ad_watch_count: newCount,
-      ad_locked_until: newLock
-    }).eq('uid', user.uid);
 
     res.json({ 
       success: true, 
