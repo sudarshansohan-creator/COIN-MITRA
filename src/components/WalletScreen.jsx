@@ -133,7 +133,7 @@ export default function WalletScreen({
     setErrorMessage('');
 
     if (!isEligible) {
-      setErrorMessage(`Minimum withdrawal threshold is 2,000 Coins (₹100). You currently have ${coinBalance} Coins.`);
+      setErrorMessage(`Minimum withdrawal threshold is 3,000 Coins (₹100). You currently have ${coinBalance} Coins.`);
       return;
     }
 
@@ -245,7 +245,7 @@ export default function WalletScreen({
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <AlertCircle style={{ color: isEligible ? 'var(--wa-green-light)' : '#fbbf24', width: '20px', height: '20px' }} />
             <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>
-              Minimum Withdrawal Threshold Alert (₹100 / 2,000 Coins)
+              Minimum Withdrawal Threshold Alert (₹100 / 3,000 Coins)
             </span>
           </div>
           <span style={{ fontWeight: 700, color: isEligible ? 'var(--wa-green-light)' : '#fbbf24', fontSize: '0.9rem' }}>
@@ -263,7 +263,7 @@ export default function WalletScreen({
 
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', color: 'var(--text-sub)' }}>
           <span>Current Balance: <strong style={{ color: 'var(--text-main)' }}>{coinBalance.toLocaleString()} Coins (₹{currentRupees})</strong></span>
-          <span>Threshold Target: <strong style={{ color: 'var(--text-main)' }}>2,000 Coins (₹100)</strong></span>
+          <span>Threshold Target: <strong style={{ color: 'var(--text-main)' }}>3,000 Coins (₹100)</strong></span>
         </div>
 
         {!isEligible && (
@@ -411,7 +411,7 @@ export default function WalletScreen({
             ) : (
               <>
                 <Send style={{ width: '18px', height: '18px' }} />
-                {isEligible ? 'Submit Withdrawal Request' : 'Locked (Need 2,000 Coins Minimum)'}
+                {isEligible ? 'Submit Withdrawal Request' : 'Locked (Need 3,000 Coins Minimum)'}
               </>
             )}
           </button>
