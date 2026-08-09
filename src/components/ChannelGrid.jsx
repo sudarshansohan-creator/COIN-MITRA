@@ -35,6 +35,7 @@ export default function ChannelGrid({
   const [isAdVerifying, setIsAdVerifying] = useState(false);
   const [adLocks, setAdLocks] = useState({});
   const [adWaitRemaining, setAdWaitRemaining] = useState({});
+  const [globalAdDelay, setGlobalAdDelay] = useState(0); // 1-5s delay between clicks
   const [clickedAdLink, setClickedAdLink] = useState(null);
   
   // Mode State: 'auto' | 'manual'
@@ -55,6 +56,9 @@ export default function ChannelGrid({
       if (document.visibilityState === 'visible' && adClickTime) {
         const timePassed = Date.now() - adClickTime;
         setAdClickTime(null); // Reset immediately to prevent multiple triggers
+        
+        // Add random 1-5s delay for other ads
+        setGlobalAdDelay(Math.floor(Math.random() * 5) + 1);
         
         if (timePassed >= 7000) {
           // Valid ad click (>= 7 seconds)
@@ -105,6 +109,8 @@ export default function ChannelGrid({
   // Handle countdown timer for gaps and locks
   useEffect(() => {
     const interval = setInterval(() => {
+      setGlobalAdDelay(prev => prev > 0 ? prev - 1 : 0);
+      
       setAdWaitRemaining(prev => {
         const next = { ...prev };
         let changed = false;
@@ -513,12 +519,12 @@ export default function ChannelGrid({
                 alert('Please log in first.');
                 return;
               }
-              if (isAdVerifying || adLocks[ad.url] || adWaitRemaining[ad.url] > 0) return;
+              if (isAdVerifying || adLocks[ad.url] || adWaitRemaining[ad.url] > 0 || globalAdDelay > 0) return;
               setClickedAdLink(ad.url);
               setAdClickTime(Date.now());
               window.open(ad.url, '_blank');
             }}
-            disabled={isAdVerifying || !!adLocks[ad.url] || adWaitRemaining[ad.url] > 0}
+            disabled={isAdVerifying || !!adLocks[ad.url] || adWaitRemaining[ad.url] > 0 || globalAdDelay > 0}
             className="btn-gold"
             style={{
               padding: '0.6rem 1.25rem',
@@ -526,8 +532,8 @@ export default function ChannelGrid({
               display: 'flex',
               alignItems: 'center',
               gap: '0.4rem',
-              opacity: (isAdVerifying || adLocks[ad.url] || adWaitRemaining[ad.url] > 0) ? 0.6 : 1,
-              cursor: (isAdVerifying || adLocks[ad.url] || adWaitRemaining[ad.url] > 0) ? 'not-allowed' : 'pointer'
+              opacity: (isAdVerifying || adLocks[ad.url] || adWaitRemaining[ad.url] > 0 || globalAdDelay > 0) ? 0.6 : 1,
+              cursor: (isAdVerifying || adLocks[ad.url] || adWaitRemaining[ad.url] > 0 || globalAdDelay > 0) ? 'not-allowed' : 'pointer'
             }}
           >
             {isAdVerifying && clickedAdLink === ad.url ? (
@@ -536,6 +542,8 @@ export default function ChannelGrid({
               <><Clock size={16} /> Locked ({Math.floor((adWaitRemaining[ad.url] || 0) / 60)}:{((adWaitRemaining[ad.url] || 0) % 60).toString().padStart(2, '0')})</>
             ) : adWaitRemaining[ad.url] > 0 ? (
               <><Clock size={16} /> Wait {adWaitRemaining[ad.url]}s...</>
+            ) : globalAdDelay > 0 ? (
+              <><Clock size={16} /> Wait {globalAdDelay}s...</>
             ) : (
               <><ExternalLink size={16} /> Visit Ad Link</>
             )}
