@@ -1425,11 +1425,16 @@ app.post('/api/verify-ad-click', async (req, res) => {
     await rewardUserWalletForTask(userId, 0.2, `Ad Link Visit Bonus: ${targetLink}`, null);
 
     // 2. Track the click in ad_link_clicks table (this implicitly sets the lock for this ad)
-    await supabase.from('ad_link_clicks').insert([{
+    const { error: insertErr } = await supabase.from('ad_link_clicks').insert([{
       user_id: userId,
       target_link: targetLink,
       coins_awarded: 0.2
     }]);
+
+    if (insertErr) {
+      console.error('Failed to track ad click in DB:', insertErr);
+      throw new Error('Database Error: ad_link_clicks table might be missing. Admin needs to run the SQL script.');
+    }
 
     res.json({ 
       success: true, 
