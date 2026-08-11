@@ -50,28 +50,36 @@ export default function ChannelGrid({
 
   const userId = userSession?.customUserId || userSession?.uid;
 
-  // Fetch initial ad locks from database on load
+  // Fetch initial ad locks from database on load based on IP address
   useEffect(() => {
     const fetchLocks = async () => {
       if (!userId) return;
       
-      const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
-      const { data, error } = await supabase
-        .from('ad_link_clicks')
-        .select('target_link, clicked_at')
-        .eq('user_id', userId)
-        .gte('clicked_at', fifteenMinsAgo);
-        
-      if (!error && data && data.length > 0) {
-        const initialLocks = {};
-        data.forEach(click => {
-          const expiresAt = new Date(new Date(click.clicked_at).getTime() + 15 * 60 * 1000).toISOString();
-          // If multiple clicks exist for same link somehow, keep the latest one
-          if (!initialLocks[click.target_link] || new Date(expiresAt) > new Date(initialLocks[click.target_link])) {
-            initialLocks[click.target_link] = expiresAt;
-          }
-        });
-        setAdLocks(initialLocks);
+      try {
+        // Fetch current IP address
+        const ipRes = await fetch('https://api.ipify.org?format=json');
+        const { ip } = await ipRes.json();
+
+        const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+        const { data, error } = await supabase
+          .from('ad_link_clicks')
+          .select('target_link, clicked_at')
+          .eq('user_id', userId)
+          .eq('ip_address', ip)
+          .gte('clicked_at', fifteenMinsAgo);
+          
+        if (!error && data && data.length > 0) {
+          const initialLocks = {};
+          data.forEach(click => {
+            const expiresAt = new Date(new Date(click.clicked_at).getTime() + 15 * 60 * 1000).toISOString();
+            if (!initialLocks[click.target_link] || new Date(expiresAt) > new Date(initialLocks[click.target_link])) {
+              initialLocks[click.target_link] = expiresAt;
+            }
+          });
+          setAdLocks(initialLocks);
+        }
+      } catch (err) {
+        console.error('Failed to fetch ad locks or IP:', err);
       }
     };
     
@@ -112,7 +120,7 @@ export default function ChannelGrid({
           });
           const data = await res.json();
           if (data.success) {
-            showToast('🎉 Awesome! +0.2 Coin added to your wallet for visiting the ad!');
+            showToast('🎉 Awesome! +0.25 Coin added to your wallet for visiting the ad!');
             
             if (typeof onRefreshProfile === 'function') {
               onRefreshProfile();
@@ -428,6 +436,15 @@ export default function ChannelGrid({
         </div>
       )}
 
+      {/* Add Info Banner for Airplane Mode Unlock */}
+      <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4 flex items-start gap-3 mb-4">
+        <ShieldAlert className="text-yellow-400 mt-0.5 shrink-0" size={18} />
+        <div className="text-sm">
+          <p className="text-yellow-100 font-medium mb-1">Ad Locked?</p>
+          <p className="text-yellow-200/80">Turn Airplane Mode ON & OFF to change your IP and unlock ads instantly!</p>
+        </div>
+      </div>
+
       {/* Mode Switcher Control Bar */}
       <div style={{
         background: 'linear-gradient(135deg, rgba(17, 27, 33, 0.9), rgba(5, 76, 63, 0.3))',
@@ -584,7 +601,10 @@ export default function ChannelGrid({
             {isAdVerifying && clickedAdLink === ad.url ? (
               <><RefreshCw size={16} style={{ animation: 'spin 1s linear infinite' }} /> Verifying...</>
             ) : adLocks[ad.url] ? (
-              <><Clock size={16} /> Locked ({Math.floor((adWaitRemaining[ad.url] || 0) / 60)}:{((adWaitRemaining[ad.url] || 0) % 60).toString().padStart(2, '0')})</>
+              <div className="flex flex-col items-center">
+                <span className="flex items-center gap-2"><Clock size={16} /> Locked ({Math.floor((adWaitRemaining[ad.url] || 0) / 60)}:{((adWaitRemaining[ad.url] || 0) % 60).toString().padStart(2, '0')})</span>
+                <span className="text-[10px] text-yellow-500 mt-1">Airplane ON & OFF to Unlock</span>
+              </div>
             ) : adWaitRemaining[ad.url] > 0 ? (
               <><Clock size={16} /> Wait {adWaitRemaining[ad.url]}s...</>
             ) : globalAdDelay > 0 ? (
@@ -808,6 +828,8 @@ export default function ChannelGrid({
                             gap: '0.3rem'
                           }}
                         >
+                          <span className="font-semibold">+0.25</span>
+                          <span className="text-xs text-yellow-400/80">Coins</span>
                           {isVerifyingThis ? (
                             <>
                               <RefreshCw size={13} style={{ animation: 'spin 1s linear infinite' }} />

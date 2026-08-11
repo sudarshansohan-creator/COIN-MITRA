@@ -1413,23 +1413,25 @@ app.post('/api/verify-ad-click', async (req, res) => {
       .select('clicked_at')
       .eq('user_id', userId)
       .eq('target_link', targetLink)
+      .eq('ip_address', clientIp)
       .gte('clicked_at', lockTimeLimit)
       .order('clicked_at', { ascending: false })
       .limit(1)
       .maybeSingle();
 
     if (recentClick) {
-      return res.status(403).json({ success: false, error: 'This ad is locked for 15 minutes after each click. Please try again later.' });
+      return res.status(403).json({ success: false, error: 'This ad is locked for this IP address. Turn Airplane Mode ON/OFF to change IP and unlock instantly!' });
     }
 
-    // 1. Reward the user (0.2 coin for this specific ad task)
-    await rewardUserWalletForTask(userId, 0.2, `Ad Link Visit Bonus: ${targetLink}`, null);
+    // 1. Reward the user (0.25 coin for this specific ad task)
+    await rewardUserWalletForTask(userId, 0.25, `Ad Link Visit Bonus: ${targetLink}`, null);
 
-    // 2. Track the click in ad_link_clicks table (this implicitly sets the lock for this ad)
+    // 2. Track the click in ad_link_clicks table (this implicitly sets the lock for this ad and IP)
     const { error: insertErr } = await supabase.from('ad_link_clicks').insert([{
       user_id: userId,
       target_link: targetLink,
-      coins_awarded: 0.2
+      coins_awarded: 0.25,
+      ip_address: clientIp
     }]);
 
     if (insertErr) {
@@ -1439,7 +1441,7 @@ app.post('/api/verify-ad-click', async (req, res) => {
 
     res.json({ 
       success: true, 
-      message: 'Verified! +0.2 Coin added to your wallet.'
+      message: 'Verified! +0.25 Coin added to your wallet.'
     });
   } catch (error) {
     console.error('Verify ad click error:', error);
