@@ -223,20 +223,6 @@ export default function ChannelGrid({
   useEffect(() => {
     if (!userId) return;
 
-    // Fetch Ad Status
-    const fetchAdStatus = async () => {
-      try {
-        const res = await fetch(`https://coin-mitra.onrender.com/api/ad-status/${userId}`);
-        const data = await res.json();
-        if (data.success) {
-          setAdLocks(data.adLocks || {});
-        }
-      } catch (err) {
-        console.error('Failed to fetch ad status:', err);
-      }
-    };
-    fetchAdStatus();
-
     // Fetch Mode
     const fetchModeAndCompletions = async () => {
       try {

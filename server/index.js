@@ -1365,7 +1365,7 @@ app.get('/api/ad-status/:userId', async (req, res) => {
     if (error || !user) return res.status(404).json({ success: false, error: 'User not found' });
     
     // Fetch per-ad locks from ad_link_clicks
-    const lockTimeLimit = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+    const lockTimeLimit = new Date(Date.now() - 2 * 60 * 1000).toISOString();
     const { data: recentClicks } = await supabase
       .from('ad_link_clicks')
       .select('target_link, clicked_at')
@@ -1375,7 +1375,7 @@ app.get('/api/ad-status/:userId', async (req, res) => {
     const adLocks = {};
     if (recentClicks) {
       recentClicks.forEach(click => {
-        const lockExpiration = new Date(new Date(click.clicked_at).getTime() + 15 * 60 * 1000).toISOString();
+        const lockExpiration = new Date(new Date(click.clicked_at).getTime() + 2 * 60 * 1000).toISOString();
         if (!adLocks[click.target_link] || new Date(lockExpiration) > new Date(adLocks[click.target_link])) {
           adLocks[click.target_link] = lockExpiration;
         }
