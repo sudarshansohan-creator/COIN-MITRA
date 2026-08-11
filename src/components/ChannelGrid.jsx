@@ -60,35 +60,25 @@ export default function ChannelGrid({
     return cid;
   };
 
-  // Fetch initial ad locks from database on load based on Connection ID
-  const fetchLocks = async () => {
+  // Load ad locks from local storage
+  const fetchLocks = () => {
     if (!userId) return;
     
-    try {
-      const activeConnectionId = getConnectionId();
-      const fifteenMinsAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
-      const { data, error } = await supabase
-        .from('ad_link_clicks')
-        .select('target_link, clicked_at')
-        .eq('user_id', userId)
-        .eq('connection_id', activeConnectionId)
-        .gte('clicked_at', fifteenMinsAgo);
-        
-      if (!error && data && data.length > 0) {
-        const initialLocks = {};
-        data.forEach(click => {
-          const expiresAt = new Date(new Date(click.clicked_at).getTime() + 2 * 60 * 1000).toISOString();
-          if (!initialLocks[click.target_link] || new Date(expiresAt) > new Date(initialLocks[click.target_link])) {
-            initialLocks[click.target_link] = expiresAt;
-          }
-        });
-        setAdLocks(initialLocks);
-      } else {
-        setAdLocks({});
+    const initialLocks = {};
+    const keys = Object.keys(localStorage);
+    for (const key of keys) {
+      if (key.startsWith('adLock_')) {
+        const link = key.replace('adLock_', '');
+        const expiresAt = localStorage.getItem(key);
+        // If expired, remove it
+        if (Date.now() > new Date(expiresAt).getTime()) {
+           localStorage.removeItem(key);
+        } else {
+           initialLocks[link] = expiresAt;
+        }
       }
-    } catch (err) {
-      console.error('Failed to fetch ad locks:', err);
     }
+    setAdLocks(initialLocks);
   };
 
   useEffect(() => {
@@ -100,7 +90,12 @@ export default function ChannelGrid({
       const newCid = 'conn-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
       localStorage.setItem('adConnectionId', newCid);
       
-      // Re-fetch locks with the new connection ID (which will be empty, unlocking everything)
+      // Clear local locks
+      const keys = Object.keys(localStorage);
+      for (const key of keys) {
+        if (key.startsWith('adLock_')) localStorage.removeItem(key);
+      }
+      
       fetchLocks();
       
       // Show toast
@@ -154,10 +149,12 @@ export default function ChannelGrid({
               onRefreshProfile();
             }
             
+            const lockExpires = new Date(Date.now() + 2 * 60 * 1000).toISOString();
             setAdLocks(prev => ({
               ...prev,
-              [targetLink]: new Date(Date.now() + 2 * 60 * 1000).toISOString()
+              [targetLink]: lockExpires
             }));
+            localStorage.setItem('adLock_' + targetLink, lockExpires);
             
           } else {
             alert(data.error || 'Failed to verify ad visit.');
@@ -213,6 +210,7 @@ export default function ChannelGrid({
           if (Date.now() >= lockTime) {
              delete updated[link];
              hasExpired = true;
+             localStorage.removeItem('adLock_' + link);
           }
         });
         return hasExpired ? updated : currentLocks;
