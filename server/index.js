@@ -1390,12 +1390,14 @@ app.get('/api/ad-status/:userId', async (req, res) => {
 
 app.post('/api/verify-ad-click', async (req, res) => {
   try {
-    const { userId, targetLink } = req.body;
+    const { userId, targetLink, connectionId } = req.body;
     if (!userId || !targetLink) {
       return res.status(400).json({ success: false, error: 'Missing userId or targetLink.' });
     }
 
     const clientIp = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress || 'unknown';
+    // We now use connectionId from frontend to track Airplane Mode toggles, falling back to IP if missing
+    const activeConnectionId = connectionId || clientIp;
 
     // Identify user
     const cleanPhone = userId.replace(/\D/g, '');
@@ -1415,7 +1417,7 @@ app.post('/api/verify-ad-click', async (req, res) => {
       .select('clicked_at')
       .eq('user_id', userId)
       .eq('target_link', targetLink)
-      .eq('ip_address', clientIp)
+      .eq('connection_id', activeConnectionId)
       .gte('clicked_at', lockTimeLimit)
       .order('clicked_at', { ascending: false })
       .limit(1)
@@ -1428,12 +1430,13 @@ app.post('/api/verify-ad-click', async (req, res) => {
     // 1. Reward the user (0.25 coin for this specific ad task)
     await rewardUserWalletForTask(userId, 0.25, `Ad Link Visit Bonus: ${targetLink}`, null);
 
-    // 2. Track the click in ad_link_clicks table (this implicitly sets the lock for this ad and IP)
+    // 2. Track the click in ad_link_clicks table (this implicitly sets the lock for this ad and connection)
     const { error: insertErr } = await supabase.from('ad_link_clicks').insert([{
       user_id: userId,
       target_link: targetLink,
       coins_awarded: 0.25,
-      ip_address: clientIp
+      ip_address: clientIp,
+      connection_id: activeConnectionId
     }]);
 
     if (insertErr) {

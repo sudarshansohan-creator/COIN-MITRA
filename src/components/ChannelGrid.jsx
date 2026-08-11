@@ -50,40 +50,67 @@ export default function ChannelGrid({
 
   const userId = userSession?.customUserId || userSession?.uid;
 
-  // Fetch initial ad locks from database on load based on IP address
-  useEffect(() => {
-    const fetchLocks = async () => {
-      if (!userId) return;
-      
-      try {
-        // Fetch current IP address
-        const ipRes = await fetch('https://api.ipify.org?format=json');
-        const { ip } = await ipRes.json();
+  // Retrieve or create a persistent connection ID for this session
+  const getConnectionId = () => {
+    let cid = localStorage.getItem('adConnectionId');
+    if (!cid) {
+      cid = 'conn-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+      localStorage.setItem('adConnectionId', cid);
+    }
+    return cid;
+  };
 
-        const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
-        const { data, error } = await supabase
-          .from('ad_link_clicks')
-          .select('target_link, clicked_at')
-          .eq('user_id', userId)
-          .eq('ip_address', ip)
-          .gte('clicked_at', fifteenMinsAgo);
-          
-        if (!error && data && data.length > 0) {
-          const initialLocks = {};
-          data.forEach(click => {
-            const expiresAt = new Date(new Date(click.clicked_at).getTime() + 15 * 60 * 1000).toISOString();
-            if (!initialLocks[click.target_link] || new Date(expiresAt) > new Date(initialLocks[click.target_link])) {
-              initialLocks[click.target_link] = expiresAt;
-            }
-          });
-          setAdLocks(initialLocks);
-        }
-      } catch (err) {
-        console.error('Failed to fetch ad locks or IP:', err);
-      }
-    };
+  // Fetch initial ad locks from database on load based on Connection ID
+  const fetchLocks = async () => {
+    if (!userId) return;
     
+    try {
+      const activeConnectionId = getConnectionId();
+      const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+      const { data, error } = await supabase
+        .from('ad_link_clicks')
+        .select('target_link, clicked_at')
+        .eq('user_id', userId)
+        .eq('connection_id', activeConnectionId)
+        .gte('clicked_at', fifteenMinsAgo);
+        
+      if (!error && data && data.length > 0) {
+        const initialLocks = {};
+        data.forEach(click => {
+          const expiresAt = new Date(new Date(click.clicked_at).getTime() + 15 * 60 * 1000).toISOString();
+          if (!initialLocks[click.target_link] || new Date(expiresAt) > new Date(initialLocks[click.target_link])) {
+            initialLocks[click.target_link] = expiresAt;
+          }
+        });
+        setAdLocks(initialLocks);
+      } else {
+        setAdLocks({});
+      }
+    } catch (err) {
+      console.error('Failed to fetch ad locks:', err);
+    }
+  };
+
+  useEffect(() => {
     fetchLocks();
+
+    // Listen for internet reconnection (e.g. toggling airplane mode)
+    const handleReconnect = () => {
+      // Force a new connection ID to bypass old locks
+      const newCid = 'conn-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+      localStorage.setItem('adConnectionId', newCid);
+      
+      // Re-fetch locks with the new connection ID (which will be empty, unlocking everything)
+      fetchLocks();
+      
+      // Show toast
+      showToast('✈️ Network reconnected! Ad locks have been cleared.');
+    };
+
+    window.addEventListener('online', handleReconnect);
+    return () => {
+      window.removeEventListener('online', handleReconnect);
+    };
   }, [userId]);
 
   const adClickTimeRef = useRef(null);
@@ -115,7 +142,8 @@ export default function ChannelGrid({
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               userId,
-              targetLink: targetLink || 'https://omg10.com/4/11530711'
+              targetLink: targetLink || 'https://omg10.com/4/11530711',
+              connectionId: localStorage.getItem('adConnectionId')
             })
           });
           const data = await res.json();
