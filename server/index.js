@@ -1410,8 +1410,8 @@ app.post('/api/verify-ad-click', async (req, res) => {
     const { data: user, error: fetchErr } = await query.or(orConditions.join(',')).maybeSingle();
     if (fetchErr || !user) return res.status(404).json({ success: false, error: 'User not found.' });
 
-    // Check if this specific ad is currently locked
-    const lockTimeLimit = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+    // Check if this specific ad is currently locked (2 minute lock)
+    const lockTimeLimit = new Date(Date.now() - 2 * 60 * 1000).toISOString();
     const { data: recentClick } = await supabase
       .from('ad_link_clicks')
       .select('clicked_at')
@@ -1424,7 +1424,7 @@ app.post('/api/verify-ad-click', async (req, res) => {
       .maybeSingle();
 
     if (recentClick) {
-      return res.status(403).json({ success: false, error: 'This ad is locked for this IP address. Turn Airplane Mode ON/OFF to change IP and unlock instantly!' });
+      return res.status(403).json({ success: false, error: 'This ad is locked for 2 minutes after each click. Turn Airplane Mode ON/OFF to unlock instantly!' });
     }
 
     // 1. Reward the user (0.25 coin for this specific ad task)

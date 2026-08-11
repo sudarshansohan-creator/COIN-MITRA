@@ -66,7 +66,7 @@ export default function ChannelGrid({
     
     try {
       const activeConnectionId = getConnectionId();
-      const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+      const fifteenMinsAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
       const { data, error } = await supabase
         .from('ad_link_clicks')
         .select('target_link, clicked_at')
@@ -77,7 +77,7 @@ export default function ChannelGrid({
       if (!error && data && data.length > 0) {
         const initialLocks = {};
         data.forEach(click => {
-          const expiresAt = new Date(new Date(click.clicked_at).getTime() + 15 * 60 * 1000).toISOString();
+          const expiresAt = new Date(new Date(click.clicked_at).getTime() + 2 * 60 * 1000).toISOString();
           if (!initialLocks[click.target_link] || new Date(expiresAt) > new Date(initialLocks[click.target_link])) {
             initialLocks[click.target_link] = expiresAt;
           }
@@ -156,7 +156,7 @@ export default function ChannelGrid({
             
             setAdLocks(prev => ({
               ...prev,
-              [targetLink]: new Date(Date.now() + 15 * 60 * 1000).toISOString()
+              [targetLink]: new Date(Date.now() + 2 * 60 * 1000).toISOString()
             }));
             
           } else {
