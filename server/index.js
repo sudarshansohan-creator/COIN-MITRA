@@ -1395,6 +1395,8 @@ app.post('/api/verify-ad-click', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Missing userId or targetLink.' });
     }
 
+    const clientIp = req.headers['x-forwarded-for']?.split(',')[0] || req.socket.remoteAddress || 'unknown';
+
     // Identify user
     const cleanPhone = userId.replace(/\D/g, '');
     let query = supabase.from('users').select('uid, ad_watch_count, ad_locked_until');
